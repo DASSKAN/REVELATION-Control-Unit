@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RPF Control Unit · REVELATION</title>
+<style>
+:root{
+  --bg:#06080b; --panel:#0d1217; --panel2:#131a21; --line:#1e2833; --line2:#2a3746;
+  --text:#d9e2ec; --muted:#7a8a9e; --dim:#4d5b6c;
+  --ok:#30d158; --warn:#ffb020; --bad:#ff3b30; --info:#40a9ff; --cyan:#40c8e0;
+  --mono: ui-monospace,"Cascadia Mono","SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;height:100%}
+a{color:inherit;text-decoration:none}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line2);border-radius:4px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:#44566b}
+button:disabled{opacity:.35;cursor:default}
+button.primary{background:#0b57d0;border-color:#2f73e6}
+button.red{background:#b3140c;border-color:#e0261b;color:#fff}
+button.amber{background:#8a5a00;border-color:#c88400}
+button.ghost{background:transparent}
+select,input,textarea{background:#080b0f;border:1px solid var(--line2);border-radius:4px;padding:6px 8px;width:100%}
+textarea{resize:vertical}
+label{display:block;font-size:11px;color:var(--muted);margin:8px 0 3px;text-transform:uppercase;letter-spacing:.06em}
+.mono{font-family:var(--mono)}
+.muted{color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim);display:inline-block;flex:none}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:3px;background:var(--panel2);border:1px solid var(--line);font-size:11px;white-space:nowrap;font-family:var(--mono)}
+
+header{display:flex;align-items:center;gap:8px;padding:6px 14px;min-height:52px;flex-wrap:wrap;border-bottom:1px solid var(--line);background:#0a0e13;position:sticky;top:0;z-index:20}
+.brand{font-family:var(--mono);font-weight:700;letter-spacing:.14em;font-size:13px;white-space:nowrap}
+.brand small{display:block;font-weight:400;color:var(--muted);letter-spacing:.08em;font-size:10px}
+#threat{white-space:nowrap;font-family:var(--mono);font-weight:700;letter-spacing:.12em;padding:6px 12px;border-radius:3px;font-size:12px;border:1px solid}
+#threat.NORMAL{color:var(--ok);border-color:#1f6b35;background:#0a1d10}
+#threat.ELEVATED{color:#111;background:var(--warn);border-color:var(--warn)}
+#threat.HIGH{color:#fff;background:var(--bad);border-color:var(--bad)}
+#threat.CRITICAL{color:#fff;background:var(--bad);border-color:#fff;animation:blink 0.6s steps(2) infinite}
+@keyframes blink{50%{background:#5a0000}}
+.spacer{flex:1}
+#clock{font-family:var(--mono);font-size:20px;letter-spacing:.06em}
+#clock small{font-size:11px;color:var(--muted);display:block;text-align:right;letter-spacing:.04em}
+
+#banner{display:none;background:#3a0906;border-bottom:1px solid var(--bad);padding:7px 14px;align-items:center;gap:12px;font-family:var(--mono);font-size:12px}
+#banner.on{display:flex}
+#banner b{color:#ff8a80;letter-spacing:.1em}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:10px;padding:10px}
+@media (max-width:1250px){main{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.ph{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);flex-wrap:wrap}
+.ph .spacer{flex:1}
+.ph button{padding:3px 8px;font-size:11px;letter-spacing:0;text-transform:none;font-weight:500}
+
+.wall{display:grid;gap:6px;padding:6px;background:#000}
+.tile{position:relative;background:#000;border:2px solid #1a1f26;aspect-ratio:16/9;overflow:hidden;cursor:pointer}
+.tile.main{cursor:default}
+.tile img{width:100%;height:100%;object-fit:contain;display:block}
+.tile .tag{position:absolute;left:0;bottom:0;right:0;display:flex;gap:8px;align-items:center;padding:3px 8px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-family:var(--mono);font-size:11px}
+.tile.alarm{border-color:var(--bad);animation:tileflash 0.8s steps(2) infinite}
+@keyframes tileflash{50%{border-color:#400}}
+.tile canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.tile canvas.drawing{pointer-events:auto;cursor:crosshair}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;padding:0 6px 6px;background:#000}
+.thumbs:empty{display:none}
+.stats{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line)}
+.stat{padding:6px 10px;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0}
+.stat .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.stat .v{font-family:var(--mono);font-size:15px}
+.row3{display:grid;grid-template-columns:1.1fr .9fr 1.2fr;gap:10px}
+@media (max-width:1500px){.row3{grid-template-columns:1fr 1fr}}
+#plot{width:100%;height:260px;display:block;background:#05080b}
+.tele{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.tele div{background:var(--panel);padding:5px 10px}
+.tele .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.tele .v{font-family:var(--mono);font-size:13px}
+#log{height:260px;overflow:auto;font-family:var(--mono);font-size:11.5px}
+#log div{padding:2px 10px;border-bottom:1px solid #111820;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#log .bad{color:#ff6b61} #log .warn{color:var(--warn)} #log .ok{color:var(--ok)} #log .info{color:var(--cyan)}
+
+#alerts{max-height:430px;overflow:auto}
+.inc{padding:9px 10px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:86px 1fr;gap:9px}
+.inc.hot{background:rgba(255,59,48,.07);box-shadow:inset 3px 0 0 var(--bad)}
+.inc img,.inc .noimg{width:86px;height:58px;object-fit:cover;border-radius:2px;background:#000;cursor:pointer}
+.inc .noimg{display:grid;place-items:center;color:var(--muted);font-size:10px;font-family:var(--mono)}
+.inc .t{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.inc .t b{font-size:12.5px;letter-spacing:.02em}
+.lvl{font-size:10px;font-weight:700;padding:1px 5px;border-radius:2px;font-family:var(--mono)}
+.lvl.HIGH{background:var(--bad);color:#fff} .lvl.MEDIUM{background:var(--warn);color:#111} .lvl.LOW,.lvl.NORMAL,.lvl.NONE{background:#2a3646}
+.st{font-size:10px;padding:1px 5px;border-radius:2px;border:1px solid var(--line2);color:var(--muted);font-family:var(--mono)}
+.st.NEW{border-color:var(--bad);color:var(--bad)} .st.DISPATCHED{border-color:var(--warn);color:var(--warn)}
+.st.ACKNOWLEDGED,.st.EN_ROUTE,.st.ON_SCENE{border-color:var(--info);color:var(--info)}
+.st.CONFIRMED_THREAT{background:var(--bad);color:#fff;border-color:var(--bad)} .st.CLEARED{border-color:var(--ok);color:var(--ok)}
+.st.CLOSED,.st.DISMISSED{color:var(--dim)}
+.st.ESC{background:#5a0000;color:#ffb4ae;border-color:var(--bad)}
+.inc .meta{font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--mono)}
+.inc .acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.inc .acts button,.inc .acts select{padding:3px 7px;font-size:11px;width:auto}
+.empty{padding:14px 10px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:5px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--muted);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+td button{padding:2px 7px;font-size:11px}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;border:0;border-radius:0;background:transparent;padding:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button.on{color:var(--text);border-bottom-color:var(--info)}
+.cmd{padding:4px 10px 10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.quick{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.quick button{padding:3px 7px;font-size:11px}
+#msgs{max-height:150px;overflow:auto;border-top:1px solid var(--line);font-size:11.5px}
+#msgs div{padding:4px 10px;border-bottom:1px solid #111820}
+
+#takeover{position:fixed;inset:0;z-index:100;display:none;background:rgba(40,0,0,.94);overflow:auto}
+#takeover.on{display:block}
+#takeover::before{content:"";position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 0 10px var(--bad),inset 0 0 160px 40px rgba(255,0,0,.55);animation:pulse 0.9s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:inset 0 0 0 10px #600,inset 0 0 60px 10px rgba(255,0,0,.15)}}
+.to{max-width:1400px;margin:0 auto;padding:28px 34px}
+.to .hdr{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.to .siren{font-size:15px;font-family:var(--mono);letter-spacing:.3em;color:#fff;background:var(--bad);padding:6px 14px;animation:blink .5s steps(2) infinite}
+.to h1{font-size:54px;line-height:1.05;margin:14px 0 4px;letter-spacing:.02em;color:#fff;font-weight:900;text-transform:uppercase}
+.to .sub{font-family:var(--mono);font-size:15px;color:#ffc9c4}
+.to .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:22px;margin-top:20px}
+@media (max-width:1000px){.to .grid{grid-template-columns:1fr}.to h1{font-size:36px}}
+.to .media{background:#000;border:2px solid var(--bad);position:relative}
+.to .media canvas{width:100%;display:block}
+.to .media .bar{height:5px;background:#300;position:relative}
+.to .media .bar i{position:absolute;left:0;top:0;bottom:0;background:#ff8a80}
+.to .media .bar b{position:absolute;top:-3px;width:3px;height:11px;background:#fff}
+.to .media .cap{position:absolute;left:8px;top:8px;font-family:var(--mono);font-size:12px;background:rgba(0,0,0,.7);padding:2px 7px}
+.to .facts{background:rgba(0,0,0,.55);border:1px solid #6a1510;padding:14px 16px;font-family:var(--mono);font-size:13.5px}
+.to .facts div{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:5px 0;border-bottom:1px solid #3a0d0a}
+.to .facts span{color:#ff9b93;text-transform:uppercase;font-size:11px;letter-spacing:.08em;padding-top:2px}
+.to .coords{font-size:20px;color:#fff;user-select:all}
+.to .status{font-size:17px;color:#fff;margin-top:14px;font-family:var(--mono);padding:10px 12px;background:rgba(0,0,0,.5);border-left:4px solid var(--warn)}
+.to .status.ok{border-left-color:var(--ok)}
+.to .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.to .acts button,.to .acts select{padding:15px 10px;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-width:2px}
+.to .acts select{text-transform:none;font-weight:600}
+.to .ack{grid-column:1/-1;background:#fff;color:#8a0000;border-color:#fff;font-size:17px;padding:17px}
+.to .ack:hover{background:#ffe5e3}
+.to .keys{margin-top:10px;font-family:var(--mono);font-size:11px;color:#ff9b93}
+
+#splash{position:fixed;inset:0;z-index:200;background:rgba(3,5,8,.97);display:grid;place-items:center}
+#splash .box{width:min(440px,92vw);background:var(--panel);border:1px solid var(--line2);padding:26px}
+#splash h2{margin:0 0 4px;font-family:var(--mono);letter-spacing:.14em;font-size:16px}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line2);border-radius:4px;max-width:min(980px,95vw);padding:0}
+dialog::backdrop{background:rgba(0,0,0,.75)}
+dialog .body{padding:14px}
+dialog img{width:100%;display:block}
+.hist{font-family:var(--mono);font-size:11.5px;margin-top:10px;max-height:220px;overflow:auto}
+.hist div{padding:3px 0;border-bottom:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#16202b;border:1px solid #34475d;padding:9px 14px;border-radius:4px;z-index:300;font-size:13px}
+body.viewer .opOnly{display:none!important}
+.sectabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:-4px -14px 12px;padding:0 14px}
+.sectabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--muted);padding:8px 12px;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.sectabs button.on{color:var(--text);border-bottom-color:var(--info)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-bottom:12px}
+.kv div{background:var(--panel2);border:1px solid var(--line);padding:8px 10px;border-radius:3px}
+.kv b{display:block;font-family:var(--mono);font-size:15px;word-break:break-all}
+.kv span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.vres{font-family:var(--mono);font-size:12px;padding:10px;border-radius:3px;margin:8px 0;white-space:pre-wrap}
+.vres.ok{background:#0a2414;border:1px solid #1f6b35;color:#9ff0b8}
+.vres.bad{background:#2a0806;border:1px solid var(--bad);color:#ffb4ae}
+#secDlg{width:min(1100px,96vw)}
+#secDlg .body{max-height:82vh;overflow:auto}
+.norun{padding:5px 10px;font-size:11.5px;background:#2a2008;color:var(--warn);border-bottom:1px solid var(--line);font-family:var(--mono)}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="box">
+    <h2>RPF CONTROL UNIT</h2>
+    <div class="muted" style="margin-bottom:10px">REVELATION · railway security surveillance console</div>
+    <div id="loginForm">
+      <label for="lgUser">Username</label>
+      <input id="lgUser" autocomplete="username" value="operator">
+      <label for="lgPass">Password</label>
+      <input id="lgPass" type="password" autocomplete="current-password">
+      <div id="lgErr" style="color:var(--bad);font-size:12px;min-height:18px;margin-top:6px"></div>
+    </div>
+    <div id="lgWho" class="muted" style="display:none;margin:10px 0"></div>
+    <p class="muted" style="font-size:12px">Starting the console arms the siren, voice announcements and desktop notifications. Keep this tab open and the volume up. Every action is recorded under your name in the tamper-proof ledger.</p>
+    <button class="primary" id="btnConsole" style="width:100%;padding:11px">SIGN IN &amp; START CONSOLE</button>
+  </div>
+</div>
+
+<header>
+  <div class="brand">REVELATION<small>RPF SURVEILLANCE CONTROL UNIT</small></div>
+  <span id="threat" class="NORMAL">THREAT: NORMAL</span>
+  <span class="pill" id="runPill"><span class="dot"></span><span>NO RUN</span></span>
+  <button class="primary" id="btnStart">Start run</button>
+  <button id="btnEnd" disabled>End run</button>
+  <div class="spacer"></div>
+  <span class="pill" id="pillLink"><span class="dot"></span>DRONE</span>
+  <span class="pill" id="pillCams"><span class="dot"></span>CAMS</span>
+  <span class="pill" id="pillHH"><span class="dot"></span>UNITS 0</span>
+  <span class="pill" id="pillAudit" title="Hash-chained audit log"><span class="dot"></span>AUDIT</span>
+  <span class="pill" id="pillSSE"><span class="dot"></span>LINK</span>
+  <span class="pill" id="pillLedger" title="Blockchain evidence ledger"><span class="dot"></span>LEDGER</span>
+  <span class="pill" id="pillSec" title="Device message security"><span class="dot"></span>SEC</span>
+  <button id="btnSec" title="Security centre: devices, ledger, anchoring, attack demo">🛡 Security</button>
+  <button id="btnLogs" title="Download the log of a run">Run logs</button>
+  <button id="btnMute" title="Mute/unmute alarm sound">🔊 Sound on</button>
+  <div id="clock">--:--:--<small id="op"></small></div>
+  <button id="btnLogout" class="ghost" title="Sign out">⏻</button>
+</header>
+
+<div id="banner">
+  <b>● ACTIVE INCIDENTS</b>
+  <span id="bannerText"></span>
+  <div class="spacer"></div>
+  <button class="red" id="btnReopen">Open alarm screen</button>
+</div>
+
+<main>
+  <div class="col">
+    <section class="panel">
+      <div class="ph">Video wall <span class="mono" id="mainCamName" style="letter-spacing:.04em;color:var(--text)"></span>
+        <span class="spacer"></span>
+        <button id="btnZone">Draw restricted zone</button>
+        <button id="btnZoneSave" style="display:none" class="primary">Save zone</button>
+        <button id="btnZoneCancel" style="display:none">Cancel</button>
+        <button id="btnZoneClear">Clear zones</button>
+        <button id="btnFull">Full screen</button>
+      </div>
+      <div id="noRun" class="norun">NO ACTIVE RUN: detections are shown but NOT logged, alerted or dispatched. Press Start run.</div>
+      <div class="wall"><div class="tile main" id="mainTile"><img id="mainImg" alt="Main camera"><canvas id="zoneCanvas"></canvas>
+        <div class="tag"><span class="dot" id="recDot"></span><span id="mainTag"></span></div></div></div>
+      <div class="thumbs" id="thumbs"></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Persons</div><div class="v" id="sPersons">0</div></div>
+        <div class="stat"><div class="k">Bags</div><div class="v" id="sBags">0</div></div>
+        <div class="stat"><div class="k">Video FPS</div><div class="v" id="sFps">–</div></div>
+        <div class="stat"><div class="k">Inference</div><div class="v" id="sInf">–</div></div>
+        <div class="stat"><div class="k">Open incidents</div><div class="v" id="sOpen">0</div></div>
+        <div class="stat"><div class="k">Model</div><div class="v" id="sBackend" style="font-size:11px">–</div></div>
+      </div>
+    </section>
+
+    <div class="row3">
+      <section class="panel">
+        <div class="ph">Tactical plot <span class="spacer"></span><span class="muted mono" style="text-transform:none;letter-spacing:0" id="plotScale"></span></div>
+        <canvas id="plot"></canvas>
+      </section>
+      <section class="panel">
+        <div class="ph">Drone telemetry <span class="spacer"></span><span class="mono" style="letter-spacing:0" id="droneId">–</span></div>
+        <div class="tele">
+          <div><div class="k">Latitude</div><div class="v" id="tLat">–</div></div>
+          <div><div class="k">Longitude</div><div class="v" id="tLon">–</div></div>
+          <div><div class="k">Alt AGL</div><div class="v" id="tAlt">–</div></div>
+          <div><div class="k">Heading</div><div class="v" id="tHdg">–</div></div>
+          <div><div class="k">Speed</div><div class="v" id="tSpd">–</div></div>
+          <div><div class="k">Battery</div><div class="v" id="tBat">–</div></div>
+          <div><div class="k">Cam pitch</div><div class="v" id="tPitch">–</div></div>
+          <div><div class="k">Mode</div><div class="v" id="tMode">–</div></div>
+          <div><div class="k">Last packet</div><div class="v" id="tAge">–</div></div>
+          <div><div class="k">Lost pkts</div><div class="v" id="tLost">–</div></div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="ph">Event log</div>
+        <div id="log"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="col">
+    <section class="panel">
+      <div class="ph">Incidents <span class="spacer"></span><span class="muted" style="text-transform:none;letter-spacing:0" id="autoNote"></span></div>
+      <div id="alerts"><div class="empty">No incidents.</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph">RPF units</div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Unit</th><th>Status</th><th>Batt</th><th></th></tr></thead>
+        <tbody id="hhBody"><tr><td colspan="4" class="muted">No handhelds connected. Open /handheld on a phone.</td></tr></tbody></table></div>
+    </section>
+
+    <section class="panel opOnly">
+      <div class="tabs"><button class="on" data-tab="tAlert">Send alert</button><button data-tab="tMsg">Message units</button></div>
+      <div class="cmd" id="tAlert">
+        <div class="grid2">
+          <div><label for="oaType">Incident</label>
+            <select id="oaType">
+              <option>Suspicious person</option><option>Unattended baggage</option><option>Restricted area breach</option>
+              <option>Suspected narcotics</option><option>Suspected explosive</option><option>Crowd / stampede risk</option>
+              <option>Fight / assault</option><option>Theft / chain snatching</option><option>Medical emergency</option>
+              <option>Fire / smoke</option><option>Trespass on track</option>
+            </select></div>
+          <div><label for="oaLvl">Priority</label>
+            <select id="oaLvl"><option>HIGH</option><option>MEDIUM</option><option>LOW</option></select></div>
+          <div><label for="oaZone">Location / zone</label><input id="oaZone" value="PLATFORM_01"></div>
+          <div><label for="oaTarget">Send to</label><select id="oaTarget"></select></div>
+        </div>
+        <label for="oaPos">Coordinates</label>
+        <select id="oaPos"><option value="drone">Drone's current position</option><option value="custom">Enter lat, lon…</option><option value="none">No coordinates (zone only)</option></select>
+        <input id="oaLatLon" placeholder="13.08268, 80.27552" style="display:none;margin-top:6px">
+        <label for="oaNote">Details for officers</label>
+        <textarea id="oaNote" rows="2" placeholder="e.g. man in red shirt, black trolley bag, heading to FOB"></textarea>
+        <label style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:12px;color:var(--text)"><input type="checkbox" id="oaSnap" checked style="width:auto"> Attach current frame from the main camera</label>
+        <button class="red" id="btnSendAlert" style="width:100%;margin-top:8px;padding:10px;font-weight:700;letter-spacing:.06em">SEND ALERT TO HANDHELDS</button>
+      </div>
+      <div class="cmd" id="tMsg" style="display:none">
+        <div class="grid2">
+          <div><label for="mTarget">To</label><select id="mTarget"></select></div>
+          <div><label for="mPri">Priority</label><select id="mPri"><option>INFO</option><option>URGENT</option></select></div>
+        </div>
+        <label for="mText">Message</label>
+        <textarea id="mText" rows="2" maxlength="280" placeholder="Type an instruction for the officers"></textarea>
+        <div class="quick" id="quick">
+          <button>Hold position</button><button>Evacuate the platform</button><button>Cordon off the area</button>
+          <button>Do not touch the object</button><button>Report to control room</button><button>Bomb squad en route</button><button>All clear, resume patrol</button>
+        </div>
+        <button class="primary" id="btnSendMsg" style="width:100%;margin-top:8px;padding:9px">SEND MESSAGE</button>
+      </div>
+      <div id="msgs"></div>
+    </section>
+  </div>
+</main>
+
+<div id="takeover" role="alertdialog" aria-live="assertive">
+  <div class="to">
+    <div class="hdr"><span class="siren">⚠ THREAT ALERT</span><span class="mono" id="toId" style="color:#ffb4ae"></span><div class="spacer"></div><span class="mono" id="toMore" style="color:#ffb4ae"></span></div>
+    <h1 id="toTitle">THREAT</h1>
+    <div class="sub" id="toSub"></div>
+    <div class="grid">
+      <div>
+        <div class="media"><canvas id="toCanvas" width="960" height="540"></canvas><div class="cap" id="toCap">EVIDENCE</div>
+          <div class="bar"><i id="toProg"></i><b id="toMark"></b></div></div>
+      </div>
+      <div>
+        <div class="facts" id="toFacts"></div>
+        <div class="status" id="toStatus"></div>
+      </div>
+    </div>
+    <div class="acts">
+      <button class="red opOnly" id="toNearest">Dispatch nearest unit</button>
+      <button class="red opOnly" id="toAll">Dispatch ALL units</button>
+      <select id="toSel" class="opOnly"></select>
+      <button class="amber opOnly" id="toBackup">Request backup</button>
+      <button id="toMsg" class="opOnly">Message units</button>
+      <button id="toFalse" class="opOnly">False alarm · dismiss</button>
+      <button class="ack" id="toAck">ACKNOWLEDGE · SILENCE ALARM</button>
+      <button id="toAckAll" style="grid-column:1/-1;display:none;padding:10px">Acknowledge all pending alarms</button>
+    </div>
+    <div class="keys">The alarm keeps sounding until an operator acknowledges it (button or Enter). It sounds again if no unit responds within <span id="toEsc"></span>s or a handheld confirms the threat.</div>
+  </div>
+</div>
+
+<dialog id="dlg"><div class="body" id="dlgBody"></div></dialog>
+<dialog id="secDlg"><div class="body">
+  <div style="display:flex;align-items:center;margin-bottom:8px"><b style="letter-spacing:.1em">🛡 SECURITY CENTRE</b><div class="spacer"></div><button onclick="secDlg.close()">Close</button></div>
+  <div class="sectabs" id="secTabs">
+    <button class="on" data-t="sOver">Overview</button><button data-t="sLedger">Blockchain ledger</button>
+    <button data-t="sDev">Devices</button><button data-t="sEvents">Security events</button><button data-t="sDemo">Live attack demo</button>
+  </div>
+  <div id="sOver"></div><div id="sLedger" style="display:none"></div><div id="sDev" style="display:none"></div>
+  <div id="sEvents" style="display:none"></div><div id="sDemo" style="display:none"></div>
+</div></dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const S = {run:null, drones:{}, handhelds:{}, alerts:{}, cams:[], main:null, messages:{}, cfg:{},
+           acked:new Set(), audio:null, muted:false, operator:'', started:false};
+const fmt = (v, d=6) => v == null ? '–' : Number(v).toFixed(d);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const tshort = t => t ? new Date(t).toLocaleTimeString() : '';
+const OPEN = ['NEW','DISPATCHED','ACKNOWLEDGED','EN_ROUTE','ON_SCENE'];
+const human = s => String(s || '').replace(/_/g, ' ');
+
+async function api(path, opts={}) {
+  const r = await fetch(path, {headers:{'Content-Type':'application/json'}, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined});
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && S.started) { toast('Session expired: please sign in again'); setTimeout(() => location.reload(), 1200); throw j; }
+  if (!r.ok) { toast(j.error || `Error ${r.status}`); log(`${path}: ${j.error || r.status}`, 'bad'); throw j; }
+  return j;
+}
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.append(d); setTimeout(() => d.remove(), 3000); }
+function log(text, cls='', when=null) {
+  const d = document.createElement('div'); d.className = cls;
+  d.textContent = `${(when ? new Date(when) : new Date()).toLocaleTimeString()}  ${text}`;
+  $('#log').prepend(d); while ($('#log').children.length > 300) $('#log').lastChild.remove();
+}
+function pill(el, state, text) { el.querySelector('.dot').className = 'dot ' + state; el.lastChild.textContent = ' ' + text; }
+setInterval(() => { $('#clock').firstChild.textContent = new Date().toLocaleTimeString('en-GB'); }, 500);
+const act = async (fn) => { try { await fn(); } catch (e) {} };
+
+// ================================================================= console start
+S.me = null;
+(async () => {    // already signed in? then only a click is needed (browsers need it for sound)
+  try { const m = await fetch('/api/me').then(r => r.json()); if (m.user) { S.me = m.user; $('#loginForm').style.display = 'none';
+    $('#lgWho').style.display = ''; $('#lgWho').textContent = `Signed in as ${m.user.name} (${m.user.role})`; $('#btnConsole').textContent = 'START CONSOLE'; } } catch (e) {}
+  if (!S.me) setTimeout(() => $('#lgPass').focus(), 50);
+})();
+async function startConsole() {
+  if (!S.me) {
+    const r = await fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username: $('#lgUser').value, password: $('#lgPass').value})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $('#lgErr').textContent = j.error || 'Sign-in failed'; return; }
+    S.me = j;
+  }
+  S.operator = S.me.name; S.role = S.me.role;
+  document.body.classList.toggle('viewer', S.role === 'VIEWER');
+  try { S.audio = new (window.AudioContext || window.webkitAudioContext)(); S.audio.resume(); } catch (e) {}
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  $('#op').textContent = `${S.operator} · ${S.role}`; $('#splash').remove(); S.started = true;
+  speak('Control unit online.');
+  await init();
+  updateAlarm();
+}
+$('#btnConsole').onclick = startConsole;
+$('#lgPass').addEventListener('keydown', e => { if (e.key === 'Enter') startConsole(); });
+$('#btnLogout').onclick = async () => { await fetch('/api/logout', {method:'POST'}); location.reload(); };
+$('#btnMute').onclick = () => { S.muted = !S.muted; $('#btnMute').textContent = S.muted ? '🔇 Muted' : '🔊 Sound on'; if (S.muted) { siren(false); window.speechSynthesis?.cancel(); } else { sirenOn = false; updateAlarm(); } };
+
+// ================================================================= sound + voice
+let sirenTimer = null, sirenOn = false;
+function siren(on) {
+  if (S.muted || !S.audio) on = false;
+  if (on === sirenOn) return; sirenOn = on; clearInterval(sirenTimer);
+  if (!on) return;
+  let hi = true;
+  const tone = () => {       // two-tone hi-lo emergency siren
+    const t = S.audio.currentTime, o = S.audio.createOscillator(), o2 = S.audio.createOscillator(), g = S.audio.createGain();
+    o.type = 'square'; o2.type = 'sawtooth';
+    const f = hi ? 960 : 700; hi = !hi;
+    o.frequency.setValueAtTime(f, t); o2.frequency.setValueAtTime(f * 1.005, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.setValueAtTime(0.25, t + 0.36); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    o.connect(g); o2.connect(g); g.connect(S.audio.destination); o.start(t); o2.start(t); o.stop(t + 0.42); o2.stop(t + 0.42);
+  };
+  tone(); sirenTimer = setInterval(tone, 420);
+}
+function speak(text) {
+  if (S.muted || !('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text); u.rate = 1.0; u.pitch = 0.9; u.volume = 1; u.lang = 'en-IN';
+  speechSynthesis.speak(u);
+}
+function notify(a) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try { new Notification(`THREAT: ${human(a.detection)}`, {body: `${a.zone || ''} · ${a.alert_id}`, requireInteraction: true, tag: a.alert_id}); } catch (e) {}
+}
+let titleTimer = null;
+function flashTitle(on) {
+  clearInterval(titleTimer);
+  if (!on) { document.title = 'RPF Control Unit · REVELATION'; return; }
+  let x = false; titleTimer = setInterval(() => { document.title = (x = !x) ? '⚠ THREAT ALERT ⚠' : 'RPF Control Unit'; }, 700);
+}
+
+// ================================================================= run
+function renderRun() {
+  const r = S.run, p = $('#runPill'), active = r && r.status !== 'COMPLETED';
+  p.querySelector('.dot').className = 'dot ' + (!active ? '' : r.status === 'ALERT' ? 'bad' : 'ok');
+  p.lastChild.textContent = active ? `${r.run_id} · ${r.status}` : 'NO RUN';
+  $('#btnStart').disabled = !!active; $('#btnEnd').disabled = !active; $('#noRun').style.display = active ? 'none' : '';
+  $('#recDot').className = 'dot ' + (active ? 'bad' : '');
+}
+$('#btnStart').onclick = () => act(async () => { const j = await api('/api/run/start', {method:'POST', body:{operator:S.operator}}); S.run = j.run; renderRun(); log(`Run ${j.run_id} started by ${S.operator}`, 'ok'); speak('Inspection run started.'); });
+$('#btnEnd').onclick = () => act(async () => { if (!confirm('End the inspection run?')) return; const j = await api('/api/run/end', {method:'POST', body:{}}); S.run = j.run; renderRun(); log(`Run ${j.run_id} completed`); });
+
+// ================================================================= threat level + alarm takeover
+function threatLevel() {
+  const open = Object.values(S.alerts).filter(a => OPEN.includes(a.status));
+  const confirmed = Object.values(S.alerts).some(a => a.status === 'CONFIRMED_THREAT' && !S.acked.has(a.alert_id + ':c'));
+  const escd = open.some(a => a.escalations > 0 && a.status === 'DISPATCHED');
+  const lvl = confirmed || escd ? 'CRITICAL' : open.some(a => a.threat_level === 'HIGH') ? 'HIGH' : open.length ? 'ELEVATED' : 'NORMAL';
+  const t = $('#threat'); t.className = lvl; t.textContent = 'THREAT: ' + lvl;
+  $('#sOpen').textContent = open.length;
+  return open;
+}
+function pendingAlarms() {
+  return Object.values(S.alerts).filter(a =>
+    (a.status === 'CONFIRMED_THREAT' && !S.acked.has(a.alert_id + ':c')) ||
+    (OPEN.includes(a.status) && a.threat_level === 'HIGH' && !S.acked.has(a.alert_id + ':' + (a.escalations || 0)))
+  ).sort((a, b) => (b.status === 'CONFIRMED_THREAT') - (a.status === 'CONFIRMED_THREAT') || b.created_at.localeCompare(a.created_at));
+}
+let toCurrent = null, speakTimer = null;
+function updateAlarm() {
+  const open = threatLevel(), list = pendingAlarms();
+  if (open.length && !list.length) {
+    $('#banner').classList.add('on');
+    $('#bannerText').textContent = open.slice(0, 4).map(a => `${a.alert_id} ${human(a.detection)} [${human(a.status)}${a.assigned_to ? ' · ' + a.assigned_to : ''}]`).join('   ·   ');
+  } else $('#banner').classList.remove('on');
+  document.querySelectorAll('.tile').forEach(t => t.classList.toggle('alarm', open.some(a => a.camera && a.camera === t.dataset.camname && a.threat_level === 'HIGH')));
+  if (!list.length || !S.started) {
+    $('#takeover').classList.remove('on'); siren(false); flashTitle(false); clearInterval(speakTimer); speakTimer = null; toCurrent = null; stopClip(); return;
+  }
+  const a = list[0], key = a.alert_id + ':' + a.status + ':' + a.escalations, changed = toCurrent !== key;
+  toCurrent = key;
+  renderTakeover(a, list.length);
+  $('#takeover').classList.add('on'); siren(true); flashTitle(true);
+  if (changed) {
+    notify(a);
+    const say = () => speak(announce(a));
+    window.speechSynthesis?.cancel(); say(); clearInterval(speakTimer); speakTimer = setInterval(say, 12000);
+    if ($('#takeover').dataset.clip !== a.alert_id) { $('#takeover').dataset.clip = a.alert_id; playClip(a); }
+  }
+}
+function announce(a) {
+  const where = (a.zone || '').replace(/_/g, ' ').toLowerCase();
+  if (a.status === 'CONFIRMED_THREAT') return `Critical. Unit ${a.assigned_to || ''} has confirmed ${human((a.resolution || a.detection).split(' /')[0])}. ${where}. Evacuate and cordon off.`;
+  if (a.escalations > 0 && a.status === 'DISPATCHED') return `Escalation. No unit has responded to ${human(a.detection)} at ${where}. All units respond.`;
+  return `Alert. ${human(a.detection)}. ${where}. ${a.status === 'NEW' ? 'Awaiting dispatch.' : 'Unit dispatched.'}`;
+}
+function renderTakeover(a, n) {
+  $('#toId').textContent = `${a.alert_id} · ${human(a.source_type)} · ${a.source_device}`;
+  $('#toMore').textContent = n > 1 ? `+${n - 1} MORE PENDING` : '';
+  $('#toAckAll').style.display = n > 1 ? '' : 'none'; $('#toAckAll').textContent = `Acknowledge all ${n} pending alarms`;
+  $('#toTitle').textContent = a.status === 'CONFIRMED_THREAT' ? `CONFIRMED: ${human((a.resolution || a.detection).split(' /')[0])}`
+    : (a.escalations && a.status === 'DISPATCHED' ? 'NO RESPONSE: ' : '') + human(a.detection);
+  $('#toSub').textContent = `${a.zone || ''}${a.camera ? ' · ' + a.camera : ''} · detected ${tshort(a.created_at)} · T+${elapsed(a.created_at)}`;
+  const coord = a.latitude != null ? `${fmt(a.latitude)}, ${fmt(a.longitude)}` : 'NO POSITION';
+  const near = nearestUnits(a);
+  $('#toFacts').innerHTML = `
+    <div><span>Threat level</span><b style="color:${a.threat_level === 'HIGH' ? '#ff6b61' : '#ffb020'}">${a.threat_level}</b></div>
+    <div><span>Location</span><div class="coords">${coord}</div></div>
+    <div><span>Geo source</span>${esc(human(a.geo_method))}</div>
+    <div><span>What</span>${esc(a.description || '')}</div>
+    <div><span>Confidence</span>${Number(a.confidence).toFixed(2)}</div>
+    <div><span>Nearest units</span>${near.length ? near.slice(0, 3).map(u => `${u.id} ${Math.round(u.d)} m`).join(' · ') : 'no unit with GPS'}</div>
+    <div><span>Evidence hash</span><span style="color:#ddd;text-transform:none;letter-spacing:0;font-size:11px;word-break:break-all">${a.evidence_sha256 || '–'}</span></div>
+    ${a.maps_url ? `<div><span>Map</span><a href="${a.maps_url}" target="_blank" rel="noopener" style="text-decoration:underline">open in Google Maps</a></div>` : ''}`;
+  $('#toStatus').className = 'status' + (['ACKNOWLEDGED','EN_ROUTE','ON_SCENE'].includes(a.status) ? ' ok' : '');
+  $('#toStatus').innerHTML = statusLine(a);
+  $('#toEsc').textContent = S.cfg.escalate_after_s || 30;
+  const canSend = ['NEW','DISPATCHED'].includes(a.status);
+  $('#toNearest').disabled = !canSend; $('#toAll').disabled = !canSend; $('#toSel').disabled = !canSend;
+  $('#toBackup').disabled = !['DISPATCHED','ACKNOWLEDGED','EN_ROUTE','ON_SCENE'].includes(a.status) || a.backup;
+  $('#toFalse').disabled = !OPEN.includes(a.status);
+  const opts = Object.values(S.handhelds).filter(h => h.online).map(h => `<option value="${h.device_id}">Send to ${h.device_id}${h.officer ? ' · ' + esc(h.officer) : ''}</option>`).join('');
+  $('#toSel').innerHTML = `<option value="">Send to unit…</option>${opts}`;
+  $('#takeover').dataset.id = a.alert_id;
+}
+function statusLine(a) {
+  if (a.status === 'NEW') return '⚠ NOT DISPATCHED: choose an action below';
+  if (a.status === 'DISPATCHED') {
+    const to = a.dispatched_to === 'ALL' || !a.dispatched_to ? 'ALL UNITS' : a.dispatched_to;
+    const left = Math.max(0, Math.round((S.cfg.escalate_after_s || 30) - (Date.now() - new Date(a.updated_at)) / 1000));
+    return `Dispatched to <b>${to}</b>, awaiting acknowledgement · escalates in ${left}s${a.escalations ? ` · ESCALATED ×${a.escalations}` : ''}`;
+  }
+  if (a.status === 'CONFIRMED_THREAT') return `☢ ${esc(a.assigned_to)} CONFIRMED: ${esc(a.resolution)}. Evacuate, cordon off, call the bomb squad (BDDS).`;
+  if (a.status === 'CLEARED') return `✓ Cleared by ${esc(a.assigned_to)}: ${esc(a.resolution)}`;
+  return `✓ ${esc(a.assigned_to)} ${human(a.status)}${a.backup ? ' · BACKUP REQUESTED' : ''}`;
+}
+function elapsed(t) { const s = Math.max(0, Math.round((Date.now() - new Date(t)) / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+setInterval(() => { const a = S.alerts[$('#takeover').dataset.id]; if ($('#takeover').classList.contains('on') && a) { $('#toStatus').innerHTML = statusLine(a); $('#toSub').textContent = $('#toSub').textContent.replace(/T\+\d+:\d+/, 'T+' + elapsed(a.created_at)); } }, 1000);
+
+function ackTakeover() {
+  const a = S.alerts[$('#takeover').dataset.id]; if (!a) return;
+  S.acked.add(a.alert_id + ':' + (a.escalations || 0)); if (a.status === 'CONFIRMED_THREAT') S.acked.add(a.alert_id + ':c');
+  log(`${a.alert_id} acknowledged by ${S.operator}`, 'ok'); window.speechSynthesis?.cancel(); updateAlarm();
+}
+$('#toAck').onclick = ackTakeover;
+$('#toAckAll').onclick = () => {
+  pendingAlarms().forEach(a => { S.acked.add(a.alert_id + ':' + (a.escalations || 0)); if (a.status === 'CONFIRMED_THREAT') S.acked.add(a.alert_id + ':c'); });
+  log(`All pending alarms acknowledged by ${S.operator}`, 'ok'); window.speechSynthesis?.cancel(); updateAlarm();
+};
+$('#btnReopen').onclick = () => { Object.values(S.alerts).filter(a => OPEN.includes(a.status)).forEach(a => S.acked.delete(a.alert_id + ':' + (a.escalations || 0))); toCurrent = null; updateAlarm(); };
+document.addEventListener('keydown', e => { if ($('#takeover').classList.contains('on') && e.key === 'Enter' && document.activeElement.tagName !== 'SELECT') { e.preventDefault(); ackTakeover(); } });
+$('#toNearest').onclick = () => act(async () => { const id = $('#takeover').dataset.id, near = nearestUnits(S.alerts[id]); await dispatch(id, near.length ? near[0].id : null); });
+$('#toAll').onclick = () => act(() => dispatch($('#takeover').dataset.id, 'ALL'));
+$('#toSel').onchange = e => { if (e.target.value) act(() => dispatch($('#takeover').dataset.id, e.target.value)); };
+$('#toBackup').onclick = () => act(async () => { const id = $('#takeover').dataset.id; await api(`/api/alerts/${id}/backup`, {method:'POST', body:{by:S.operator}}); log(`${id}: backup requested from all units`, 'warn'); });
+$('#toFalse').onclick = () => act(async () => { const id = $('#takeover').dataset.id; const note = prompt('Reason (false alarm)', 'false positive: owner nearby'); if (note === null) return; await api(`/api/alerts/${id}/dismiss`, {method:'POST', body:{note, by:S.operator}}); log(`${id} dismissed: ${note}`); });
+$('#toMsg').onclick = () => { ackTakeover(); tab('tMsg'); $('#mText').focus(); };
+async function dispatch(id, target) {
+  const a = await api(`/api/alerts/${id}/dispatch`, {method:'POST', body:{target, by:S.operator}});
+  log(`${id} → ${a.dispatched_to === 'ALL' ? 'ALL UNITS' : a.dispatched_to}`, 'warn'); return a;
+}
+function nearestUnits(a) {
+  if (!a || a.latitude == null) return [];
+  return Object.values(S.handhelds).filter(h => h.online && h.latitude != null)
+    .map(h => ({id:h.device_id, d:dist(h.latitude, h.longitude, a.latitude, a.longitude)})).sort((x, y) => x.d - y.d);
+}
+function dist(a, b, c, d) { const R = 6371000, r = x => x * Math.PI / 180, p1 = r(a), p2 = r(c), dp = r(c - a), dl = r(d - b);
+  const x = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2; return 2*R*Math.asin(Math.sqrt(x)); }
+
+// evidence replay: the frames before and after the alert, looped; white marker = moment of alert
+let clipTimer = null;
+function stopClip() { clearInterval(clipTimer); clipTimer = null; $('#takeover').dataset.clip = ''; }
+async function playClip(a) {
+  clearInterval(clipTimer);
+  const cv = $('#toCanvas'), g = cv.getContext('2d');
+  const drawImg = im => { if (cv.width !== im.naturalWidth) { cv.width = im.naturalWidth; cv.height = im.naturalHeight; } g.drawImage(im, 0, 0); };
+  g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+  $('#toProg').style.width = '0'; $('#toMark').style.display = 'none';
+  if (!a.clip_url) {
+    $('#toCap').textContent = a.evidence_url ? 'EVIDENCE FRAME' : 'NO IMAGE';
+    if (a.evidence_url) { const im = new Image(); im.onload = () => drawImg(im); im.src = a.evidence_url; }
+    return;
+  }
+  let clip = await fetch(a.clip_url).then(r => r.json()).catch(() => null);
+  if (!clip || !clip.frames.length) return;
+  let i = 0, refresh = 0; const cache = {};
+  clip.frames.forEach(src => { const im = new Image(); im.src = src; cache[src] = im; });   // preload
+  $('#toMark').style.display = '';
+  clipTimer = setInterval(async () => {
+    if (i >= clip.frames.length) {
+      i = 0;
+      if (refresh++ < 4) { const c2 = await fetch(a.clip_url).then(r => r.json()).catch(() => null); if (c2) clip = c2; }
+    }
+    const src = clip.frames[i]; let im = cache[src]; if (!im) { im = cache[src] = new Image(); im.src = src; }
+    if (im.complete && im.naturalWidth) drawImg(im);
+    const n = clip.frames.length, t = (i - clip.alert_frame) / clip.fps;
+    $('#toProg').style.width = `${(i + 1) / n * 100}%`; $('#toMark').style.left = `${clip.alert_frame / n * 100}%`;
+    $('#toCap').textContent = `REPLAY ${t >= 0 ? '+' : ''}${t.toFixed(1)}s · ${i >= clip.alert_frame ? 'AFTER ALERT' : 'BEFORE ALERT'}`;
+    i++;
+  }, 1000 / (clip.fps || 6));
+}
+
+// ================================================================= incidents list
+function renderAlerts() {
+  const list = Object.values(S.alerts).sort((a, b) => (OPEN.includes(b.status) - OPEN.includes(a.status)) || b.created_at.localeCompare(a.created_at));
+  if (!list.length) { $('#alerts').innerHTML = '<div class="empty">No incidents.</div>'; return; }
+  const unitOpts = Object.values(S.handhelds).filter(h => h.online).map(h => `<option value="${h.device_id}">${h.device_id}</option>`).join('');
+  $('#alerts').innerHTML = list.slice(0, 60).map(a => {
+    const img = a.evidence_url ? `<img src="${a.evidence_url}" data-id="${a.alert_id}" alt="evidence">` : `<div class="noimg">${esc(a.source_type)}</div>`;
+    const where = a.latitude != null ? `${fmt(a.latitude)}, ${fmt(a.longitude)}` : 'no position';
+    const acts = [];
+    if (['NEW','DISPATCHED'].includes(a.status)) {
+      acts.push(`<button class="red" data-act="nearest" data-id="${a.alert_id}">Nearest</button>`);
+      acts.push(`<button class="red" data-act="all" data-id="${a.alert_id}">All units</button>`);
+      if (unitOpts) acts.push(`<select data-act="to" data-id="${a.alert_id}"><option value="">Send to…</option>${unitOpts}</select>`);
+    }
+    if (['DISPATCHED','ACKNOWLEDGED','EN_ROUTE','ON_SCENE'].includes(a.status) && !a.backup) acts.push(`<button class="amber" data-act="backup" data-id="${a.alert_id}">Backup</button>`);
+    if (OPEN.includes(a.status)) acts.push(`<button data-act="dismiss" data-id="${a.alert_id}">Dismiss</button>`);
+    acts.push(`<button class="ghost" data-act="view" data-id="${a.alert_id}">Details</button>`);
+    if (a.threat_level === 'HIGH' && OPEN.includes(a.status)) acts.push(`<button class="ghost" data-act="alarm" data-id="${a.alert_id}">Alarm screen</button>`);
+    const to = a.dispatched_to ? ` → ${a.dispatched_to === 'ALL' ? 'ALL' : a.dispatched_to}` : '';
+    return `<div class="inc ${OPEN.includes(a.status) && a.threat_level === 'HIGH' ? 'hot' : ''}">${img}<div>
+      <div class="t"><span class="lvl ${a.threat_level}">${a.threat_level}</span><b>${esc(human(a.detection))}</b><span class="st ${a.status}">${human(a.status)}</span>${a.escalations ? `<span class="st ESC">ESC ×${a.escalations}</span>` : ''}${a.backup ? '<span class="st">BACKUP</span>' : ''}</div>
+      <div class="meta">${a.alert_id} · ${tshort(a.created_at)} · ${esc(a.camera || a.source_device)}${to}${a.assigned_to ? ' · <b style="color:var(--text)">' + esc(a.assigned_to) + '</b>' : ''}</div>
+      <div class="meta">${esc(a.zone || '')} · ${where}</div>
+      ${a.resolution ? `<div class="meta" style="color:${a.status === 'CONFIRMED_THREAT' ? '#ff6b61' : 'var(--ok)'}">Result: ${esc(a.resolution)}</div>` : ''}
+      <div class="acts opOnly">${acts.join('')}</div></div></div>`;
+  }).join('');
+}
+$('#alerts').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'), img = e.target.closest('img[data-id]');
+  if (img) return showAlert(img.dataset.id);
+  if (!b) return;
+  const id = b.dataset.id, a = S.alerts[id];
+  act(async () => {
+    if (b.dataset.act === 'nearest') { const n = nearestUnits(a); await dispatch(id, n.length ? n[0].id : null); }
+    if (b.dataset.act === 'all') await dispatch(id, 'ALL');
+    if (b.dataset.act === 'backup') { await api(`/api/alerts/${id}/backup`, {method:'POST', body:{by:S.operator}}); log(`${id}: backup requested`, 'warn'); }
+    if (b.dataset.act === 'dismiss') { const note = prompt('Reason for dismissing', 'false positive'); if (note === null) return; await api(`/api/alerts/${id}/dismiss`, {method:'POST', body:{note, by:S.operator}}); log(`${id} dismissed`); }
+    if (b.dataset.act === 'view') showAlert(id);
+    if (b.dataset.act === 'alarm') { S.acked.delete(id + ':' + (a.escalations || 0)); toCurrent = null; updateAlarm(); }
+  });
+});
+$('#alerts').addEventListener('change', e => { const s = e.target.closest('select[data-act="to"]'); if (s && s.value) act(() => dispatch(s.dataset.id, s.value)); });
+function showAlert(id) {
+  const a = S.alerts[id]; if (!a) return;
+  $('#dlgBody').innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><span class="lvl ${a.threat_level}">${a.threat_level}</span><b>${esc(human(a.detection))}</b><span class="st ${a.status}">${human(a.status)}</span><div class="spacer"></div><button onclick="dlg.close()">Close</button></div>
+    ${a.evidence_url ? `<img src="${a.evidence_url}" alt="evidence">` : ''}
+    <p>${esc(a.description || '')}</p>
+    <table>
+      <tr><th>Alert</th><td class="mono">${a.alert_id} · run ${a.run_id}</td></tr>
+      <tr><th>Source</th><td>${esc(a.source_device)} (${esc(a.source_type)})${a.camera ? ' · ' + esc(a.camera) : ''}</td></tr>
+      <tr><th>Location</th><td class="mono">${a.latitude != null ? fmt(a.latitude) + ', ' + fmt(a.longitude) : '–'} · ${esc(a.geo_method)} · ${esc(a.zone || '')}</td></tr>
+      <tr><th>Dispatched to</th><td>${esc(a.dispatched_to || '–')}${a.escalations ? ` · escalated ×${a.escalations}` : ''}</td></tr>
+      <tr><th>Assigned</th><td>${esc(a.assigned_to || '–')}</td></tr>
+      <tr><th>Result</th><td>${esc(a.resolution || '–')}</td></tr>
+      <tr><th>Evidence SHA-256</th><td class="mono" style="word-break:break-all">${a.evidence_sha256 || '–'}</td></tr>
+    </table>
+    <div class="hist">${(a.history || []).map(h => `<div>${tshort(h.t)}  ${esc(h.status)}  ${esc(h.by || '')}  ${esc(h.note || '')}</div>`).join('')}</div>`;
+  $('#dlg').showModal();
+}
+const dlg = $('#dlg');
+$('#btnLogs').onclick = () => act(async () => {
+  const runs = await api('/api/runs');
+  $('#dlgBody').innerHTML = `<div style="display:flex;align-items:center;margin-bottom:10px"><b>Run logs</b><div class="spacer"></div><button onclick="dlg.close()">Close</button></div>
+    <p class="muted" style="margin-top:0">Each export has the printable report, the per-second detection log, AI observations, alerts with response times, officer actions, messages, the audit chain and the evidence frames.</p>
+    <table><tr><th>Run</th><th>Started</th><th>Ended</th><th>Status</th><th></th></tr>
+    ${runs.map(r => `<tr><td class="mono">${r.run_id}</td><td>${new Date(r.start_time).toLocaleString()}</td><td>${r.end_time ? new Date(r.end_time).toLocaleTimeString() : 'active'}</td><td>${r.status}</td>
+      <td style="white-space:nowrap"><a href="/api/runs/${r.run_id}/report" target="_blank"><button>View report</button></a> <a href="/api/runs/${r.run_id}/export"><button class="primary">Download ZIP</button></a> <a href="/api/runs/${r.run_id}/export?clips=1" title="Also includes the replay frames around each alert (larger)"><button>ZIP + replays</button></a></td></tr>`).join('') || '<tr><td colspan="5" class="muted">No runs yet.</td></tr>'}</table>`;
+  $('#dlg').showModal();
+});
+
+// ================================================================= units
+function renderHH() {
+  const list = Object.values(S.handhelds), on = list.filter(h => h.online).length;
+  pill($('#pillHH'), on ? 'ok' : 'bad', `UNITS ${on}`);
+  if (list.length) {
+    $('#hhBody').innerHTML = list.map(h => {
+      const task = Object.values(S.alerts).find(a => a.assigned_to === h.device_id && OPEN.includes(a.status));
+      const state = !h.online ? '<span class="dot bad"></span> offline' : task ? `<span class="dot warn"></span> ${task.alert_id} ${human(task.status)}` : '<span class="dot ok"></span> available';
+      return `<tr><td><div class="mono">${esc(h.device_id)}</div><div class="muted" style="font-size:11px">${esc(h.officer || '')}</div></td><td>${state}</td>
+        <td>${h.battery != null ? h.battery + '%' : '–'}</td>
+        <td style="white-space:nowrap"><button data-unit="${h.device_id}" data-do="msg">Msg</button> <button data-unit="${h.device_id}" data-do="alert">Alert</button></td></tr>`;
+    }).join('');
+  }
+  renderSelectors();
+}
+$('#hhBody').addEventListener('click', e => {
+  const b = e.target.closest('button[data-unit]'); if (!b) return;
+  if (b.dataset.do === 'msg') { tab('tMsg'); $('#mTarget').value = b.dataset.unit; $('#mText').focus(); }
+  else { tab('tAlert'); $('#oaTarget').value = b.dataset.unit; $('#oaNote').focus(); }
+});
+function renderSelectors() {
+  const opts = Object.values(S.handhelds).filter(h => h.online).map(h => `<option value="${h.device_id}">${h.device_id}${h.officer ? ' · ' + esc(h.officer) : ''}</option>`).join('');
+  const keep = (sel, html) => { const v = sel.value; sel.innerHTML = html; if ([...sel.options].some(o => o.value === v)) sel.value = v; };
+  keep($('#oaTarget'), `<option value="">Nearest unit</option><option value="ALL">All units</option>${opts}`);
+  keep($('#mTarget'), `<option value="ALL">All units</option>${opts}`);
+}
+
+// ================================================================= command panel
+function tab(id) { document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === id)); $('#tAlert').style.display = id === 'tAlert' ? '' : 'none'; $('#tMsg').style.display = id === 'tMsg' ? '' : 'none'; }
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => tab(b.dataset.tab));
+$('#oaPos').onchange = e => $('#oaLatLon').style.display = e.target.value === 'custom' ? '' : 'none';
+$('#btnSendAlert').onclick = () => act(async () => {
+  const body = {detection: $('#oaType').value, threat_level: $('#oaLvl').value, zone: $('#oaZone').value, note: $('#oaNote').value,
+    target: $('#oaTarget').value || null, attach_snapshot: $('#oaSnap').checked, cam_id: S.main, use_drone_position: $('#oaPos').value === 'drone'};
+  if ($('#oaPos').value === 'custom') {
+    const m = $('#oaLatLon').value.split(',').map(Number);
+    if (m.length !== 2 || m.some(isNaN)) return toast('Enter coordinates as: lat, lon');
+    [body.latitude, body.longitude] = m;
+  }
+  const a = await api('/api/operator/alert', {method:'POST', body});
+  S.acked.add(a.alert_id + ':0');     // raised by the operator: no need to alarm the operator about it
+  onAlert(a);
+  log(`${a.alert_id} ${human(a.detection)} sent by ${S.operator} → ${a.dispatched_to}`, 'warn'); toast(`Alert ${a.alert_id} sent to ${a.dispatched_to}`);
+  $('#oaNote').value = '';
+});
+$('#quick').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { $('#mText').value = b.textContent; $('#mText').focus(); } });
+$('#btnSendMsg').onclick = () => act(async () => {
+  const m = await api('/api/operator/message', {method:'POST', body:{text:$('#mText').value, target:$('#mTarget').value, priority:$('#mPri').value}});
+  toast(`Message ${m.msg_id} sent to ${m.target}`); $('#mText').value = '';
+});
+function renderMsgs() {
+  const list = Object.values(S.messages).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 20);
+  $('#msgs').innerHTML = list.map(m => {
+    const acks = Object.keys(m.acks || {});
+    return `<div><span class="mono muted">${tshort(m.created_at)}</span> <b style="color:${m.priority === 'URGENT' ? '#ff6b61' : 'var(--cyan)'}">${m.priority}</b> → ${esc(m.target)}: ${esc(m.text)}
+      <span class="mono" style="color:${acks.length ? 'var(--ok)' : 'var(--dim)'}">${acks.length ? '✓ read by ' + acks.join(', ') : '· not read yet'}</span></div>`;
+  }).join('');
+}
+
+// ================================================================= telemetry
+function renderDrone() {
+  const d = Object.values(S.drones)[0];
+  if (!d) { pill($('#pillLink'), 'bad', 'DRONE: NO TELEMETRY'); return; }
+  $('#droneId').textContent = d.device_id;
+  $('#tLat').textContent = fmt(d.latitude); $('#tLon').textContent = fmt(d.longitude);
+  $('#tAlt').textContent = d.alt_agl != null ? `${fmt(d.alt_agl, 1)} m` : '–';
+  $('#tHdg').textContent = d.heading != null ? `${fmt(d.heading, 0)}°` : '–';
+  $('#tSpd').textContent = d.speed != null ? `${fmt(d.speed, 1)} m/s` : '–';
+  $('#tBat').textContent = d.battery != null ? `${d.battery}%` : '–';
+  $('#tPitch').textContent = d.gimbal_pitch != null ? `${d.gimbal_pitch}°` : 'default';
+  $('#tMode').textContent = d.mode || '–'; $('#tLost').textContent = d.lost_packets ?? 0;
+  pill($('#pillLink'), d.link === 'OK' ? 'ok' : d.link === 'DEGRADED' ? 'warn' : 'bad', `${d.device_id} ${d.link}`);
+}
+setInterval(() => { const d = Object.values(S.drones)[0]; if (d && d._rx) $('#tAge').textContent = `${((Date.now() - d._rx) / 1000).toFixed(1)} s`; }, 250);
+
+// ================================================================= video wall
+function renderCams() {
+  if (!S.cams.length) { $('#mainTag').textContent = 'NO CAMERAS'; return; }
+  if (!S.main || !S.cams.some(c => c.cam_id === S.main)) S.main = S.cams[0].cam_id;
+  const m = S.cams.find(c => c.cam_id === S.main), src = `/video_feed/${m.cam_id}`;
+  if ($('#mainImg').dataset.src !== src) { $('#mainImg').src = src; $('#mainImg').dataset.src = src; }
+  $('#mainTile').dataset.camname = m.name;
+  $('#mainTag').textContent = `${m.cam_id} · ${m.name.toUpperCase()} · ${m.video}`;
+  $('#mainCamName').textContent = `· ${m.name}`;
+  const others = S.cams.filter(c => c.cam_id !== S.main), want = others.map(c => c.cam_id).join(',');
+  if ($('#thumbs').dataset.set !== want) {
+    $('#thumbs').dataset.set = want;
+    $('#thumbs').innerHTML = others.map(c => `<div class="tile" data-cam="${c.cam_id}" data-camname="${esc(c.name)}" title="Click to make this the main view"><img src="/video_feed/${c.cam_id}" alt="${esc(c.name)}"><div class="tag"><span class="dot ok"></span>${c.cam_id} · ${esc(c.name.toUpperCase())}</div></div>`).join('');
+  }
+  const live = S.cams.filter(c => c.video === 'LIVE').length;
+  pill($('#pillCams'), live === S.cams.length ? 'ok' : live ? 'warn' : 'bad', `CAMS ${live}/${S.cams.length}`);
+}
+$('#thumbs').addEventListener('click', e => { const t = e.target.closest('.tile[data-cam]'); if (t) { S.main = t.dataset.cam; renderCams(); updateAlarm(); } });
+$('#btnFull').onclick = () => $('#mainTile').requestFullscreen?.();
+
+let zonePts = [];
+const zc = $('#zoneCanvas');
+function imgRect() {
+  const img = $('#mainImg'), r = zc.getBoundingClientRect();
+  const iw = img.naturalWidth || 16, ih = img.naturalHeight || 9, s = Math.min(r.width / iw, r.height / ih);
+  return {r, ox:(r.width - iw * s) / 2, oy:(r.height - ih * s) / 2, w:iw * s, h:ih * s};
+}
+function drawZone() {
+  const {r, ox, oy, w, h} = imgRect(); zc.width = r.width; zc.height = r.height;
+  const g = zc.getContext('2d'); g.clearRect(0, 0, r.width, r.height); if (!zonePts.length) return;
+  g.strokeStyle = '#ff3b30'; g.fillStyle = 'rgba(255,59,48,.22)'; g.lineWidth = 2; g.beginPath();
+  zonePts.forEach(([x, y], i) => { const X = ox + x * w, Y = oy + y * h; i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+  g.closePath(); g.fill(); g.stroke();
+  zonePts.forEach(([x, y]) => { g.fillStyle = '#fff'; g.fillRect(ox + x * w - 3, oy + y * h - 3, 6, 6); });
+}
+function zoneMode(on) {
+  zc.classList.toggle('drawing', on); zonePts = []; drawZone();
+  $('#btnZone').style.display = on ? 'none' : ''; $('#btnZoneSave').style.display = on ? '' : 'none'; $('#btnZoneCancel').style.display = on ? '' : 'none';
+  if (on) toast('Click points on the video around the restricted area, then Save zone');
+}
+zc.addEventListener('click', e => {
+  const {r, ox, oy, w, h} = imgRect(), x = (e.clientX - r.left - ox) / w, y = (e.clientY - r.top - oy) / h;
+  if (x < 0 || y < 0 || x > 1 || y > 1) return; zonePts.push([x, y]); drawZone();
+});
+$('#btnZone').onclick = () => zoneMode(true);
+$('#btnZoneCancel').onclick = () => zoneMode(false);
+$('#btnZoneSave').onclick = () => act(async () => {
+  if (zonePts.length < 3) return toast('Click at least 3 points');
+  const name = prompt('Zone name', 'TRACK_BED') || 'RESTRICTED';
+  await api('/api/zones', {method:'POST', body:{name, cam_id:S.main, polygon:zonePts.map(p => p.map(v => +v.toFixed(4)))}});
+  log(`Zone ${name} saved on ${S.main}`, 'ok'); zoneMode(false);
+});
+$('#btnZoneClear').onclick = () => act(async () => { if (!confirm('Remove restricted zones on this camera?')) return; await api('/api/zones?cam_id=' + S.main, {method:'DELETE'}); log('Zones cleared'); });
+
+// ================================================================= tactical plot (works offline)
+function drawPlot() {
+  const c = $('#plot'), dpr = devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
+  if (W < 60 || H < 60) return;
+  if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#05080b'; g.fillRect(0, 0, W, H);
+  const drone = Object.values(S.drones)[0], pts = [];
+  if (drone && drone.latitude != null) pts.push(drone);
+  Object.values(S.handhelds).forEach(h => h.latitude != null && pts.push(h));
+  const alerts = Object.values(S.alerts).filter(a => a.latitude != null && OPEN.includes(a.status)); alerts.forEach(a => pts.push(a));
+  if (!pts.length) { g.fillStyle = '#7a8a9e'; g.font = '12px system-ui'; g.fillText('Waiting for positions…', 12, 22); return; }
+  const o = pts[0], toM = p => [(p.longitude - o.longitude) * 111320 * Math.cos(o.latitude * Math.PI / 180), (p.latitude - o.latitude) * 111320];
+  let r = 60; pts.forEach(p => { const [x, y] = toM(p); r = Math.max(r, Math.abs(x) * 1.2, Math.abs(y) * 1.2); });
+  const ring = [25, 50, 100, 200, 250, 500, 1000, 2000].find(n => n * 2 >= r / 2) || 2000;
+  const sc = (Math.min(W, H) / 2 - 16) / r, cx = W / 2, cy = H / 2, P = p => { const [x, y] = toM(p); return [cx + x * sc, cy - y * sc]; };
+  g.strokeStyle = '#18222e'; g.lineWidth = 1; g.font = '10px ui-monospace,monospace'; g.fillStyle = '#4d5b6c';
+  for (let k = ring; k <= r * 1.5; k += ring) { g.beginPath(); g.arc(cx, cy, k * sc, 0, 7); g.stroke(); g.fillText(`${k} m`, cx + k * sc * .707 + 3, cy - k * sc * .707); }
+  g.beginPath(); g.moveTo(cx, 6); g.lineTo(cx, H - 6); g.moveTo(6, cy); g.lineTo(W - 6, cy); g.stroke(); g.fillStyle = '#7a8a9e'; g.fillText('N', cx - 3, 15);
+  $('#plotScale').textContent = `rings ${ring} m`;
+  if (drone && drone.latitude != null) {
+    const [x, y] = P(drone), h = (drone.heading || 0) * Math.PI / 180;
+    g.save(); g.translate(x, y); g.rotate(h); g.fillStyle = 'rgba(64,169,255,.12)'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 60, -Math.PI / 2 - .8, -Math.PI / 2 + .8); g.closePath(); g.fill();
+    g.fillStyle = '#40a9ff'; g.beginPath(); g.moveTo(0, -10); g.lineTo(7, 7); g.lineTo(0, 3); g.lineTo(-7, 7); g.closePath(); g.fill(); g.restore();
+    g.fillStyle = '#9cc9ff'; g.fillText(drone.device_id, x + 9, y + 13);
+  }
+  alerts.forEach(a => {
+    const [x, y] = P(a), col = a.threat_level === 'HIGH' ? '#ff3b30' : '#ffb020', pulse = 8 + 4 * Math.abs(Math.sin(Date.now() / 300));
+    g.strokeStyle = col; g.beginPath(); g.arc(x, y, pulse + 4, 0, 7); g.stroke();
+    g.fillStyle = col; g.beginPath(); g.moveTo(x, y - 7); g.lineTo(x + 7, y); g.lineTo(x, y + 7); g.lineTo(x - 7, y); g.closePath(); g.fill(); g.fillText(a.alert_id, x + 10, y - 7);
+    if (a.assigned_to && S.handhelds[a.assigned_to] && S.handhelds[a.assigned_to].latitude != null) {
+      const [hx, hy] = P(S.handhelds[a.assigned_to]); g.setLineDash([4, 4]); g.strokeStyle = '#30d158'; g.beginPath(); g.moveTo(hx, hy); g.lineTo(x, y); g.stroke(); g.setLineDash([]);
+    }
+  });
+  Object.values(S.handhelds).forEach(h => { if (h.latitude == null) return; const [x, y] = P(h); g.fillStyle = h.online ? '#30d158' : '#555'; g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); g.fillStyle = '#b9f0cc'; g.fillText(h.device_id, x + 8, y + 4); });
+}
+setInterval(drawPlot, 200); addEventListener('resize', drawPlot);
+
+// ================================================================= live stream
+function onAlert(a) {
+  const prev = S.alerts[a.alert_id]; S.alerts[a.alert_id] = Object.assign({}, prev || {}, a);
+  if (!prev) log(`${a.alert_id} ${a.threat_level} ${human(a.detection)} · ${a.camera || a.source_device}`, a.threat_level === 'HIGH' ? 'bad' : 'warn');
+  else if (prev.status !== a.status) log(`${a.alert_id} → ${human(a.status)}${a.assigned_to ? ' (' + a.assigned_to + ')' : ''}`, a.status === 'CONFIRMED_THREAT' ? 'bad' : a.status === 'CLEARED' ? 'ok' : '');
+  else if ((prev.escalations || 0) < (a.escalations || 0)) log(`${a.alert_id} ESCALATED: no response, sent to ALL UNITS`, 'bad');
+  else if (!prev.backup && a.backup) log(`${a.alert_id} backup call sent to all units`, 'warn');
+  renderAlerts(); renderHH(); updateAlarm();
+}
+function connect() {
+  const es = new EventSource('/api/stream?role=dashboard');
+  es.onopen = () => pill($('#pillSSE'), 'ok', 'LINK');
+  es.onerror = () => pill($('#pillSSE'), 'bad', 'RECONNECTING');
+  es.addEventListener('run', e => { S.run = JSON.parse(e.data); renderRun(); });
+  es.addEventListener('alert', e => onAlert(JSON.parse(e.data)));
+  es.addEventListener('telemetry', e => { const d = JSON.parse(e.data); d._rx = Date.now() - d.age_s * 1000; S.drones[d.device_id] = d; renderDrone(); });
+  es.addEventListener('handheld', e => { const h = JSON.parse(e.data); const was = S.handhelds[h.device_id]; S.handhelds[h.device_id] = h; renderHH(); if (!was || was.online !== h.online) { log(`${h.device_id} ${h.online ? 'online' : 'OFFLINE'}`, h.online ? '' : 'warn'); renderAlerts(); } });
+  es.addEventListener('event', e => { const v = JSON.parse(e.data); if (v.device_type === 'HANDHELD') log(`${v.device_id} scan: ${v.detection} (${v.threat_level}, ${(+v.confidence).toFixed(2)})`, v.threat_level === 'HIGH' ? 'bad' : ''); });
+  es.addEventListener('message', e => { const m = JSON.parse(e.data); S.messages[m.msg_id] = m; renderMsgs(); log(`Message ${m.msg_id} → ${m.target}: ${m.text}`, 'info'); });
+  es.addEventListener('message_ack', e => { const v = JSON.parse(e.data); if (S.messages[v.msg_id]) { S.messages[v.msg_id].acks = v.acks; renderMsgs(); } log(`${v.device_id} read message ${v.msg_id}`, 'ok'); });
+  es.addEventListener('security', e => { const v = JSON.parse(e.data); log(`SECURITY ${v.kind}: ${v.detail}`, v.level === 'bad' ? 'bad' : v.level === 'warn' ? 'warn' : 'info');
+    if (v.kind === 'SECURITY_MODE') refreshSecPill(); if ($('#secDlg').open) loadSec(); });
+  es.addEventListener('ledger', e => { S.ledger = JSON.parse(e.data); renderLedgerPill(); });
+  es.addEventListener('ai_note', e => { const v = JSON.parse(e.data); log(`AI: ${v.text}`, v.level === 'warn' ? 'warn' : ''); });
+  es.addEventListener('packet_rejected', e => { const v = JSON.parse(e.data); log(`REJECTED ${v.device_id || ''}: ${v.reason}`, 'bad'); });
+  es.addEventListener('warning', e => { const v = JSON.parse(e.data); log(`${v.device_id}: ${v.text}`, 'warn'); });
+  es.addEventListener('video_status', e => {
+    const v = JSON.parse(e.data), i = S.cams.findIndex(c => c.cam_id === v.cam_id);
+    if (i >= 0) S.cams[i] = v; else S.cams.push(v);
+    if (v.cam_id === S.main) { $('#sPersons').textContent = v.persons; $('#sBags').textContent = v.bags; $('#sFps').textContent = v.fps; $('#sInf').textContent = v.infer_ms + ' ms'; $('#sBackend').textContent = (v.backend || '').replace('ExecutionProvider', ''); }
+    renderCams();
+  });
+}
+
+async function init() {
+  const s = await api('/api/state');
+  S.cfg = s.config; S.run = s.run; renderRun();
+  S.cams = s.cameras || []; renderCams();
+  s.drones.forEach(d => { d._rx = Date.now() - d.age_s * 1000; S.drones[d.device_id] = d; }); renderDrone();
+  s.handhelds.forEach(h => S.handhelds[h.device_id] = h);
+  (s.messages || []).forEach(m => S.messages[m.msg_id] = m); renderMsgs();
+  (await api('/api/alerts')).filter(a => (S.run && a.run_id === S.run.run_id) || OPEN.includes(a.status)).forEach(a => {
+    S.alerts[a.alert_id] = a;
+    // already-existing incidents go in the banner, not a fresh siren: only NEW events after opening the page alarm
+    S.acked.add(a.alert_id + ':' + (a.escalations || 0)); S.acked.add(a.alert_id + ':c');
+  });
+  renderAlerts(); renderHH();
+  $('#autoNote').textContent = `auto: ${s.config.auto_dispatch.join(',') || 'none'} → ${s.config.dispatch_mode} unit`;
+  if (S.run) (await api(`/api/events?limit=30&run_id=${S.run.run_id}`)).reverse().forEach(v => log(`${v.device_id}: ${human(v.detection)} (${v.threat_level})`, v.threat_level === 'HIGH' ? 'bad' : '', v.received_at));
+  S.ledger = s.ledger; renderLedgerPill(); S.secMode = s.security_mode; refreshSecPill(true);
+  const audit = async () => { const au = await api('/api/audit/verify'); pill($('#pillAudit'), au.ok ? 'ok' : 'bad', au.ok ? `AUDIT ✓ ${au.entries}` : `AUDIT BROKEN @${au.broken_at_seq}`); };
+  audit(); setInterval(audit, 15000);
+  connect();
+}
+// ================================================================= security centre
+function renderLedgerPill() {
+  const L = S.ledger; if (!L) return;
+  const anc = L.last_anchor ? `⚓ ${L.last_anchor.backend === 'opentimestamps' ? 'BTC' : 'POLY'} #${L.last_anchor.height}` : (L.queued_offline ? '⚓ queued (offline)' : '⚓ none yet');
+  pill($('#pillLedger'), L.queued_offline ? 'warn' : 'ok', `LEDGER #${L.height} · ${anc}`);
+}
+async function refreshSecPill(useCached) {
+  if (!useCached) { try { S.secMode = (await api('/api/security')).mode; } catch (e) { return; } }
+  pill($('#pillSec'), S.secMode === 'enforce' ? 'ok' : S.secMode === 'monitor' ? 'warn' : 'bad', `SEC ${String(S.secMode).toUpperCase()}`);
+}
+const secDlg = $('#secDlg');
+function secTab(id) { document.querySelectorAll('#secTabs button').forEach(b => b.classList.toggle('on', b.dataset.t === id)); ['sOver','sLedger','sDev','sEvents','sDemo'].forEach(x => $('#' + x).style.display = x === id ? '' : 'none'); if (id === 'sLedger') loadBlocks(); }
+document.querySelectorAll('#secTabs button').forEach(b => b.onclick = () => secTab(b.dataset.t));
+$('#btnSec').onclick = async () => { await loadSec(); secTab('sOver'); secDlg.showModal(); };
+const sup = () => S.role === 'SUPERVISOR';
+async function loadSec() {
+  // keep results the operator is reading (pairing code, demo output) across live refreshes
+  const s = await api('/api/security');
+  const keep = {}; ['pairOut', 'demoOut', 'verifyOut'].forEach(id => { const el = document.getElementById(id); if (el) keep[id] = el.innerHTML; }); S.sec = s; S.secMode = s.mode; refreshSecPill(true); S.ledger = s.ledger; renderLedgerPill();
+  const L = s.ledger, net = s.internet || {};
+  const la = L.last_anchor;
+  $('#sOver').innerHTML = `
+    <div class="kv">
+      <div><span>Device message security</span><b style="color:${s.mode === 'enforce' ? 'var(--ok)' : 'var(--warn)'}">${s.mode.toUpperCase()}</b></div>
+      <div><span>Paired devices</span><b>${s.devices.filter(d => !d.revoked).length}</b></div>
+      <div><span>Rejected packets</span><b style="color:${s.devices.some(d => d.rejected) ? 'var(--bad)' : 'inherit'}">${s.devices.reduce((a, d) => a + d.rejected, 0)}</b></div>
+      <div><span>Ledger height</span><b>#${L.height} (${L.pending} pending)</b></div>
+      <div><span>Ledger node</span><b>${esc(L.node_id)}</b></div>
+      <div><span>Public anchoring</span><b>${esc(s.anchor_backends.join(', ') || 'off')}</b></div>
+      <div><span>Internet</span><b style="color:${net.internet ? 'var(--ok)' : net.internet === false ? 'var(--warn)' : 'inherit'}">${net.internet ? 'ONLINE' : net.internet === false ? 'OFFLINE (queued)' : 'not checked yet'}</b></div>
+      <div><span>Last public anchor</span><b>${la ? `#${la.height} ${la.backend}` : L.queued_offline ? 'waiting for internet' : 'none yet'}</b></div>
+    </div>
+    <p class="muted" style="margin:4px 0 10px">Every run, alert, dispatch, officer action, scan, message and security event, plus the SHA-256 of every evidence photo and replay clip, is sealed every ${L.block_interval_s}s into a block signed with the Control Unit's Ed25519 key (public key <span class="mono" style="font-size:11px;word-break:break-all">${esc(L.public_key)}</span>). The newest block hash is published to Bitcoin via OpenTimestamps${s.anchor_backends.includes('polygon') ? ' and to Polygon' : ''} when online, so nobody, including an administrator, can rewrite history without it showing.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="primary" onclick="verifyLedger()">Verify ledger + evidence now</button>
+      <button class="opOnly" onclick="anchorNow()">Anchor now</button>
+      ${sup() ? `<select id="secModeSel" style="width:auto"><option value="enforce">Mode: ENFORCE</option><option value="monitor">Mode: MONITOR</option><option value="off">Mode: OFF</option></select>` : ''}
+    </div><div id="verifyOut"></div>`;
+  if (sup()) { $('#secModeSel').value = s.mode; $('#secModeSel').onchange = e => act(async () => { await api('/api/security/mode', {method:'POST', body:{mode:e.target.value}}); loadSec(); }); }
+  $('#sDev').innerHTML = `
+    <div class="opOnly" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px">
+      <div><label for="pairDev">Pair a handheld phone</label><input id="pairDev" value="HAND_01" style="width:140px"></div>
+      <button class="primary" onclick="pairCode()">Get pairing code</button>
+      ${sup() ? `<div><label for="provDev">Provision ESP32 / drone</label><input id="provDev" placeholder="HAND_ESP_01" style="width:140px"></div>
+      <select id="provType" style="width:auto"><option>HANDHELD</option><option>DRONE</option></select>
+      <button onclick="provision()">Create device key</button>` : ''}
+    </div><div id="pairOut"></div>
+    <table><tr><th>Device</th><th>Type</th><th>Key fingerprint</th><th>Signed OK</th><th>Rejected</th><th>Last rejection</th><th></th></tr>
+    ${s.devices.map(d => `<tr style="${d.revoked ? 'opacity:.45' : ''}"><td class="mono">${esc(d.device_id)}</td><td>${esc(d.type)}</td><td class="mono">${esc(d.fingerprint)}</td>
+      <td>${d.ok}</td><td style="color:${d.rejected ? 'var(--bad)' : 'inherit'}">${d.rejected}</td><td>${esc(d.last_reason || '')}</td>
+      <td>${d.revoked ? 'REVOKED' : sup() ? `<button onclick="revoke('${esc(d.device_id)}')">Revoke</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No devices yet.</td></tr>'}</table>`;
+  $('#sEvents').innerHTML = `<table><tr><th>Time</th><th>Event</th><th>Detail</th><th>Device / IP</th></tr>${s.events.map(e => `<tr><td class="mono">${esc(e.t.slice(11))}</td>
+    <td style="color:${e.level === 'bad' ? 'var(--bad)' : e.level === 'warn' ? 'var(--warn)' : 'var(--cyan)'}">${esc(e.kind)}</td><td>${esc(e.detail)}</td><td class="mono">${esc(e.device_id || e.ip || '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No events.</td></tr>'}</table>`;
+  $('#sDemo').innerHTML = sup() ? `
+    <p>Show the judges the protection working, live. Both demos are safe: the tamper demo keeps a backup and <b>Restore</b> puts everything back.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="red" onclick="attackDemo()">1 · Fire forged / replayed / altered packets</button>
+      <button class="red" onclick="tamperDemo()">2 · Insider edits evidence + records</button><button onclick="restoreDemo()">Restore after tamper demo</button></div>
+    <div id="demoOut"></div>` : '<p class="muted">Supervisor role required.</p>';
+  $('#anchorsOut') && renderAnchors(s.anchors);
+  Object.entries(keep).forEach(([id, html]) => { const el = document.getElementById(id); if (el && html) el.innerHTML = html; });
+}
+function vText(v) {
+  const lines = [`Ledger: ${v.ok ? 'INTACT' : 'PROBLEMS FOUND'} · ${v.blocks} blocks · ${v.records} records · signer ${v.node_id}`,
+    `Evidence files: ${v.evidence_ok}/${v.evidence_checked} match the hash sealed in the ledger`,
+    `Audit log: ${v.audit ? (v.audit.ok ? `intact (${v.audit.entries} entries)` : `BROKEN at entry #${v.audit.broken_at_seq}`) : '-'}`,
+    `Audit entries cross-checked against the ledger: ${v.audit_sealed ?? '-'}`];
+  (v.problems || []).forEach(p => lines.push('✗ ' + p));
+  (v.evidence_tampered || []).forEach(t => lines.push(`✗ EVIDENCE ALTERED: ${t.ref} (sealed in block ${t.block})`));
+  (v.evidence_missing || []).forEach(t => lines.push(`✗ EVIDENCE MISSING: ${t.ref}`));
+  return lines.join('\n');
+}
+async function verifyLedger() { const v = await api('/api/ledger/verify'); const ok = v.ok && v.audit.ok;
+  $('#verifyOut').innerHTML = `<div class="vres ${ok ? 'ok' : 'bad'}">${esc(vText(v))}</div>`; }
+async function anchorNow() { const r = await api('/api/ledger/anchor', {method:'POST'}); toast(r.results.length ? r.results.map(x => `${x.backend}: ${x.status}`).join(' · ') : 'Already anchored'); loadSec(); }
+async function pairCode() { const r = await api('/api/security/pair-code', {method:'POST', body:{device_id:$('#pairDev').value}});
+  $('#pairOut').innerHTML = `<div class="vres ok" style="font-size:15px">On the phone: open /handheld, device ID <b>${esc(r.device_id)}</b>, pairing code <b style="font-size:26px;letter-spacing:.2em">${r.code}</b> (valid 5 min, single use)</div>`; }
+async function provision() { if (!confirm('Create a new key for this device? An existing key for the same ID stops working.')) return;
+  const r = await api('/api/security/provision', {method:'POST', body:{device_id:$('#provDev').value, type:$('#provType').value}});
+  $('#pairOut').innerHTML = `<div class="vres ok">Device <b>${esc(r.device_id)}</b> key (paste into the ESP32 sketch as DEVICE_SECRET; shown once):\n<b style="word-break:break-all">${r.secret}</b></div>`; loadSec(); }
+async function revoke(d) { if (!confirm(`Revoke ${d}? It will be rejected until paired again.`)) return; await api('/api/security/revoke', {method:'POST', body:{device_id:d}}); loadSec(); }
+async function attackDemo() {
+  const r = await api('/api/security/demo/attack', {method:'POST'}), all = r.results.every(x => x.blocked);
+  $('#demoOut').innerHTML = `<div class="vres ${all ? 'ok' : 'bad'}">${esc(`Device security mode: ${r.mode.toUpperCase()}\n` + r.results.map(x => `${x.blocked ? '✓ BLOCKED ' : '✗ ACCEPTED'}  ${x.attack}\n             → ${x.reason}`).join('\n'))}\n\n${all ? 'All attacks blocked.' : 'Some attacks got through: set mode to ENFORCE.'}</div>`;
+}
+async function tamperDemo() {
+  const r = await api('/api/security/demo/tamper', {method:'POST'}); const v = r.verify;
+  $('#demoOut').innerHTML = `<div class="vres bad">${esc('SIMULATED INSIDER ATTACK\n' + r.tampered.map(t => '• ' + t).join('\n') + '\n\nDETECTION\n' + vText(v))}</div>`;
+}
+async function restoreDemo() { const r = await api('/api/security/demo/restore', {method:'POST'}); const v = r.verify, ok = v.ok && v.audit.ok;
+  $('#demoOut').innerHTML = `<div class="vres ${ok ? 'ok' : 'bad'}">${esc('RESTORED FROM BACKUP\n' + vText(v))}</div>`; }
+async function loadBlocks() {
+  const bl = await api('/api/ledger/blocks?n=15');
+  $('#sLedger').innerHTML = `<div id="anchorsOut"></div>
+    <h4 style="margin:14px 0 6px">Latest blocks</h4>
+    <table><tr><th>#</th><th>Sealed</th><th>Records</th><th>Contents</th><th>Block hash</th><th>Prev hash</th><th>Signature</th></tr>
+    ${bl.map(b => `<tr><td class="mono">${b.height}</td><td class="mono">${esc(b.ts.slice(11, 19))}</td><td>${b.n_records}</td>
+      <td style="font-size:11px">${Object.entries(b.types).map(([k, v]) => `${k}×${v}`).join(' ')}</td>
+      <td class="mono" style="font-size:11px">${b.block_hash.slice(0, 16)}…</td><td class="mono" style="font-size:11px">${b.prev_hash.slice(0, 12)}…</td>
+      <td class="mono" style="font-size:11px">${b.signature.slice(0, 12)}…</td></tr>`).join('')}</table>`;
+  renderAnchors(S.sec ? S.sec.anchors : []);
+}
+function renderAnchors(list) {
+  const el = $('#anchorsOut'); if (!el) return;
+  el.innerHTML = `<h4 style="margin:4px 0 6px">Public anchors</h4><table><tr><th>Block</th><th>Network</th><th>Status</th><th>Receipt / transaction</th><th>Detail</th></tr>
+    ${(list || []).map(a => `<tr><td class="mono">#${a.height}</td><td>${a.backend === 'opentimestamps' ? 'Bitcoin (OpenTimestamps)' : 'Polygon'}</td>
+      <td style="color:${['SUBMITTED','CONFIRMED'].includes(a.status) ? 'var(--ok)' : a.status === 'FAILED' ? 'var(--bad)' : 'var(--warn)'}">${a.status}</td>
+      <td class="mono" style="font-size:11px;word-break:break-all">${a.url && a.backend === 'polygon' ? `<a href="${a.url}" target="_blank" rel="noopener" style="text-decoration:underline">${esc(a.receipt)}</a>` : esc(a.receipt || '')}</td>
+      <td style="font-size:11px">${esc(a.detail || '')}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No anchors yet (first one is made about a minute after start, or at the end of a run).</td></tr>'}</table>`;
+}
+
+</script>
+</body>
+</html>

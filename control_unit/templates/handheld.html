@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>RPF Handheld · REVELATION</title>
+<style>
+:root{--bg:#0b0f14;--panel:#141b24;--line:#263242;--text:#e3e9f1;--muted:#8394aa;--ok:#35c46a;--warn:#f0a020;--bad:#ff4d4f;--info:#4aa3ff;--mono:ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100%}
+a{color:inherit;text-decoration:none}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:#1c2632;border:1px solid var(--line);border-radius:10px;padding:14px;width:100%;font-weight:600;cursor:pointer}
+button.primary{background:#1d4ed8;border-color:#2b5ff0}
+button.go{background:#157a3b;border-color:#1f9a4d}
+button.danger{background:#b3261e;border-color:#d0352c}
+button:disabled{opacity:.45}
+input,select,textarea{width:100%;background:#0e141b;border:1px solid var(--line);border-radius:8px;padding:12px}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+.wrap{max-width:560px;margin:0 auto;padding:12px 14px calc(20px + env(safe-area-inset-bottom))}
+.bar{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:3}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:12px}
+h1{font-size:18px;margin:6px 0 2px;letter-spacing:.06em}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+.hidden{display:none!important}
+#alertHead{background:var(--bad);color:#fff;border-radius:12px;padding:14px;margin-top:12px}
+#alertHead.flash{animation:flash .8s steps(2) infinite}
+@keyframes flash{50%{background:#7d1612}}
+#alertHead .type{font-size:22px;font-weight:800;letter-spacing:.03em}
+.coords{font-family:var(--mono);font-size:22px;letter-spacing:.02em;user-select:all}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.nav{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}
+#compass{width:120px;height:120px}
+.big{font-size:30px;font-weight:700;font-family:var(--mono)}
+.evid{width:100%;border-radius:8px;display:block;margin-top:10px;background:#000}
+.tabs{display:flex;gap:6px;overflow:auto;margin-top:12px}
+.tabs button{width:auto;padding:6px 10px;font-size:13px;font-weight:500;white-space:nowrap}
+.tabs button.on{border-color:var(--info);color:var(--info)}
+.steps{display:grid;gap:8px;margin-top:12px}
+.lvl{font-size:12px;font-weight:700;padding:2px 8px;border-radius:4px;background:#fff;color:var(--bad)}
+.st{font-size:12px;padding:2px 8px;border:1px solid rgba(255,255,255,.6);border-radius:4px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* full-screen incoming alert / message */
+.over{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;padding:18px 16px calc(18px + env(safe-area-inset-bottom));overflow:auto}
+.over.on{display:flex}
+#incoming{background:#b3140c;color:#fff;animation:inflash .7s steps(2) infinite}
+@keyframes inflash{50%{background:#5e0500}}
+#incoming .k{font-size:14px;letter-spacing:.3em;font-weight:800}
+#incoming .ty{font-size:38px;line-height:1.05;font-weight:900;margin:14px 0 6px;text-transform:uppercase}
+#incoming .ln{font-size:17px;margin:3px 0;opacity:.95}
+#incoming .big{font-size:44px;font-weight:800;font-family:var(--mono);margin:10px 0}
+#incoming img{width:100%;border-radius:8px;margin:10px 0;border:2px solid #fff}
+#incoming button{background:#fff;color:#8a0000;border:0;font-size:22px;font-weight:900;padding:22px;letter-spacing:.06em;margin-top:auto}
+#incoming .flag{display:inline-block;background:#fff;color:#8a0000;font-weight:800;padding:3px 8px;border-radius:4px;font-size:13px;letter-spacing:.08em}
+#msgBox{background:rgba(5,8,12,.96)}
+#msgBox .card{margin:auto 0}
+#msgBox .pri{font-weight:800;letter-spacing:.2em;font-size:13px}
+#msgBox .txt{font-size:26px;font-weight:700;margin:12px 0}
+#msgBox.urgent .card{border-color:#ff4d4f;box-shadow:0 0 0 3px #ff4d4f}
+#msgBox.urgent .pri{color:#ff4d4f}
+</style>
+</head>
+<body>
+
+<div class="bar" id="bar">
+  <span><span class="dot" id="dConn"></span> <span id="tConn">offline</span></span>
+  <span><span class="dot" id="dGps"></span> <span id="tGps">GPS –</span></span>
+  <span id="tRun">no run</span>
+  <span style="flex:1"></span>
+  <span class="mono" id="tDev"></span>
+</div>
+
+<div class="wrap">
+  <!-- login -->
+  <section id="login">
+    <h1>RPF HANDHELD</h1>
+    <div class="muted">REVELATION railway security · field unit</div>
+    <div class="card">
+      <label for="devId">Device ID</label>
+      <input id="devId" value="HAND_01" autocomplete="off">
+      <label for="officer">Officer name / badge</label>
+      <input id="officer" placeholder="e.g. SI R. Kumar · 4471">
+      <label for="pairCode">Pairing code <span id="pairState" class="muted"></span></label>
+      <input id="pairCode" inputmode="numeric" maxlength="6" placeholder="6-digit code from the Control Unit" autocomplete="off">
+      <div class="muted" style="font-size:12px;margin-top:4px">The Control Unit operator gives the code (Security → Pair handheld). Needed once per phone; every message is then signed so it cannot be forged or replayed.</div>
+      <p class="muted" style="font-size:13px">Starting duty turns on alert sound and vibration, shares this device's GPS with the Control Unit and keeps the screen awake.</p>
+      <button class="primary" id="btnDuty">Start duty</button>
+    </div>
+  </section>
+
+  <!-- idle -->
+  <section id="idle" class="hidden">
+    <div class="card" style="text-align:center;padding:36px 14px">
+      <div style="font-size:40px">✓</div>
+      <div style="font-size:18px;font-weight:600">No active tasks</div>
+      <div class="muted" id="idleSub">Listening for alerts from the Control Unit</div>
+    </div>
+    <div class="card">
+      <div class="muted" style="font-size:13px">Report a detection from this handheld (without a dispatched alert)</div>
+      <div class="steps"><button id="btnSelfReport">New scan report</button></div>
+    </div>
+  </section>
+
+  <!-- alert -->
+  <section id="alertView" class="hidden">
+    <div class="tabs" id="tabs"></div>
+    <div id="alertHead">
+      <div class="row"><span class="lvl" id="aLvl">HIGH</span><span class="st" id="aStatus">DISPATCHED</span><span style="flex:1"></span><span class="mono" id="aId"></span></div>
+      <div class="type" id="aType">THREAT</div>
+      <div id="aDesc" style="font-size:14px;opacity:.95"></div>
+      <div style="font-size:13px;opacity:.85;margin-top:4px" id="aMeta"></div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="font-size:13px">Target coordinates <span id="aGeo"></span></div>
+      <div class="coords" id="aCoords">–</div>
+      <div class="nav" style="margin-top:12px">
+        <canvas id="compass" width="240" height="240"></canvas>
+        <div>
+          <div class="muted" style="font-size:13px">Distance from you</div>
+          <div class="big" id="aDist">–</div>
+          <div class="muted" style="font-size:13px;margin-top:6px">Bearing</div>
+          <div class="big" style="font-size:22px" id="aBrg">–</div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:12px">
+        <a id="aMaps" target="_blank" rel="noopener"><button>Open in Maps</button></a>
+        <button id="btnCopy">Copy coordinates</button>
+      </div>
+      <img class="evid" id="aImg" alt="Drone evidence frame">
+    </div>
+
+    <div class="card">
+      <div class="muted" style="font-size:13px">Response</div>
+      <div class="steps">
+        <button class="primary" id="btnAck">Acknowledge</button>
+        <button id="btnRoute">En route</button>
+        <button id="btnScene">On scene</button>
+      </div>
+    </div>
+
+    <div class="card" id="verifyCard">
+      <div style="font-weight:600">Verification scan</div>
+      <div class="muted" style="font-size:13px">Enter the handheld detector result after checking the object. This closes the alert at the Control Unit.</div>
+      <label for="vDet">Result</label>
+      <select id="vDet">
+        <option value="CLEAR|LOW">Clear: nothing found</option>
+        <option value="NARCOTICS|HIGH">Narcotics detected</option>
+        <option value="EXPLOSIVE|HIGH">Explosive trace detected</option>
+        <option value="SUSPICIOUS_ITEM|MEDIUM">Suspicious item, needs bomb squad</option>
+      </select>
+      <label for="vConf">Detector confidence <span id="vConfV" class="mono">0.90</span></label>
+      <input id="vConf" type="range" min="0" max="1" step="0.01" value="0.9">
+      <label for="vNote">Notes</label>
+      <textarea id="vNote" rows="2" placeholder="e.g. unattended trolley bag, owner traced"></textarea>
+      <div class="steps"><button class="go" id="btnVerify">Submit result</button></div>
+    </div>
+    <div class="card" id="doneCard" style="display:none"></div>
+  </section>
+
+  <!-- self report -->
+  <section id="selfView" class="hidden">
+    <div class="card">
+      <div style="font-weight:600">New scan report</div>
+      <label for="sDet">Result</label>
+      <select id="sDet">
+        <option value="CLEAR|LOW">Clear</option>
+        <option value="NARCOTICS|HIGH">Narcotics detected</option>
+        <option value="EXPLOSIVE|HIGH">Explosive trace detected</option>
+      </select>
+      <label for="sConf">Confidence</label>
+      <input id="sConf" type="range" min="0" max="1" step="0.01" value="0.9">
+      <label for="sZone">Zone</label>
+      <input id="sZone" value="PLATFORM_01">
+      <div class="steps"><button class="go" id="btnSelfSend">Send to Control Unit</button><button id="btnSelfCancel">Cancel</button></div>
+    </div>
+  </section>
+</div>
+
+<!-- full-screen incoming alert: stays up and keeps sounding until the officer acknowledges -->
+<div class="over" id="incoming" role="alertdialog">
+  <div class="k" id="inKind">⚠ INCOMING ALERT</div>
+  <div id="inFlags" style="margin-top:8px"></div>
+  <div class="ty" id="inType">THREAT</div>
+  <div class="ln" id="inWhere"></div>
+  <div class="ln" id="inDesc"></div>
+  <div class="big" id="inDist"></div>
+  <img id="inImg" alt="Evidence frame" class="hidden">
+  <button id="inAck">ACKNOWLEDGE</button>
+</div>
+
+<!-- message from the Control Unit -->
+<div class="over" id="msgBox" role="alertdialog">
+  <div class="card">
+    <div class="pri" id="mbPri">MESSAGE</div>
+    <div class="muted" id="mbMeta" style="font-size:13px"></div>
+    <div class="txt" id="mbText"></div>
+    <button class="primary" id="mbAck">GOT IT</button>
+  </div>
+</div>
+
+<script src="/static/devsign.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const H = {msgs:[], backupDone:new Set(), dev:null, officer:'', pos:null, heading:null, run:null, alerts:{}, current:null, audio:null, beepT:null, seen:new Set(), queue:[], wake:null};
+const fmt = (v, d=6) => v == null ? '–' : Number(v).toFixed(d);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ------------------------------------------------ geo helpers
+const rad = d => d * Math.PI / 180;
+function dist(a, b, c, d) { const R = 6371000, p1 = rad(a), p2 = rad(c), dp = rad(c - a), dl = rad(d - b);
+  const x = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2; return 2*R*Math.asin(Math.sqrt(x)); }
+function brg(a, b, c, d) { const p1 = rad(a), p2 = rad(c), dl = rad(d - b);
+  const y = Math.sin(dl)*Math.cos(p2), x = Math.cos(p1)*Math.sin(p2) - Math.sin(p1)*Math.cos(p2)*Math.cos(dl);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; }
+const card = b => ['N','NE','E','SE','S','SW','W','NW'][Math.round(b / 45) % 8];
+
+// ------------------------------------------------ network (with offline outbox)
+function secretFor(dev) { try { return localStorage.getItem('cu_secret_' + dev); } catch (e) { return null; } }
+async function post(path, body) {
+  const b = JSON.stringify(body), headers = {'Content-Type':'application/json'};
+  if (H.secret) Object.assign(headers, DevSign.headers(H.dev, H.secret, 'POST', path.split('?')[0], b));
+  const r = await fetch(path, {method:'POST', headers, body:b});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error || r.status), {status:r.status, body:j});
+  return j;
+}
+async function sendReliable(path, body) {
+  try { return await post(path, body); }
+  catch (e) {
+    if (e.status && e.status < 500) throw e;           // rejected by server: don't retry
+    H.queue.push({path, body}); saveQueue(); toast('No link: saved, will resend'); return null;
+  }
+}
+function saveQueue() { try { localStorage.setItem('cu_outbox', JSON.stringify(H.queue)); } catch (e) {} }
+function loadQueue() { try { H.queue = JSON.parse(localStorage.getItem('cu_outbox') || '[]'); } catch (e) { H.queue = []; } }
+async function flushQueue() {
+  while (H.queue.length) {
+    const m = H.queue[0];
+    try { await post(m.path, m.body); } catch (e) { if (!e.status || e.status >= 500) return; }
+    H.queue.shift(); saveQueue();
+  }
+}
+function toast(t) { const d = document.createElement('div'); d.textContent = t;
+  d.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222c38;border:1px solid #33475f;padding:10px 14px;border-radius:8px;z-index:9;font-size:14px';
+  document.body.append(d); setTimeout(() => d.remove(), 2600); }
+
+// ------------------------------------------------ duty start
+$('#btnDuty').onclick = async () => {
+  H.dev = $('#devId').value.trim().toUpperCase() || 'HAND_01';
+  H.officer = $('#officer').value.trim();
+  H.secret = secretFor(H.dev);
+  const code = $('#pairCode').value.trim();
+  if (code) {                       // pair (or re-pair) this phone with the Control Unit
+    try {
+      const r = await fetch('/api/pair', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({device_id:H.dev, code})});
+      const j = await r.json();
+      if (!r.ok) { toast(j.error || 'Pairing failed'); return; }
+      H.secret = j.secret; try { localStorage.setItem('cu_secret_' + H.dev, j.secret); } catch (e) {}
+      toast('Paired: messages are now signed');
+    } catch (e) { toast('Cannot reach the Control Unit'); return; }
+  }
+  if (!H.secret) { toast('Enter the pairing code from the Control Unit'); $('#pairCode').focus(); return; }
+  try { localStorage.setItem('cu_dev', H.dev); localStorage.setItem('cu_officer', H.officer); } catch (e) {}
+  H.audio = new (window.AudioContext || window.webkitAudioContext)(); H.audio.resume();
+  try { H.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+  if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
+  }
+  addEventListener('deviceorientationabsolute', onOrient, true);
+  addEventListener('deviceorientation', onOrient, true);
+  startGps(); loadQueue();
+  $('#tDev').textContent = H.dev + (H.officer ? ' · ' + H.officer : '');
+  $('#login').classList.add('hidden');
+  showIdle();
+  heartbeat(); setInterval(heartbeat, 5000);
+  connect();
+};
+(function restore() { try { $('#devId').value = localStorage.getItem('cu_dev') || 'HAND_01'; $('#officer').value = localStorage.getItem('cu_officer') || ''; } catch (e) {} showPair(); })();
+function showPair() { const d = $('#devId').value.trim().toUpperCase(); $('#pairState').textContent = secretFor(d) ? '· this phone is paired as ' + d + ' ✓' : '· not paired yet'; }
+$('#devId').addEventListener('input', showPair);
+
+function onOrient(e) {
+  let h = null;
+  if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
+  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;
+  if (h != null) { H.heading = h; drawCompass(); }
+}
+function startGps() {
+  if (!navigator.geolocation) { gpsState('bad', 'no GPS'); return; }
+  if (!isSecureContext) gpsState('warn', 'GPS needs HTTPS');
+  navigator.geolocation.watchPosition(p => {
+    H.pos = {lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy};
+    gpsState(p.coords.accuracy < 25 ? 'ok' : 'warn', `GPS ±${Math.round(p.coords.accuracy)} m`);
+    renderNav();
+  }, err => gpsState('bad', 'GPS ' + (err.code === 1 ? 'denied' : 'unavailable')), {enableHighAccuracy:true, maximumAge:2000, timeout:15000});
+}
+function gpsState(s, t) { $('#dGps').className = 'dot ' + s; $('#tGps').textContent = t; }
+
+async function heartbeat() {
+  const hb = {device_id:H.dev, officer:H.officer};
+  if (H.pos) Object.assign(hb, {latitude:H.pos.lat, longitude:H.pos.lon, accuracy:H.pos.acc});
+  try {
+    const nav = navigator.getBattery ? await navigator.getBattery() : null;
+    if (nav) hb.battery = Math.round(nav.level * 100);
+  } catch (e) {}
+  try {
+    const j = await post('/api/handheld/heartbeat', hb);
+    H.run = j.run_id; $('#tRun').textContent = j.run_id ? 'run ' + j.run_id : 'no run';
+    j.alerts.forEach(onAlert);   // also catches anything missed while SSE was down
+    (j.messages || []).forEach(onMessage);
+    flushQueue();
+  } catch (e) {}
+}
+
+// ------------------------------------------------ live alerts
+function connect() {
+  // EventSource cannot send headers, so the URL itself is signed (fresh signature on every reconnect)
+  const q = H.secret ? '&' + DevSign.query(H.dev, H.secret, 'GET', '/api/stream') : '';
+  const es = new EventSource('/api/stream?role=handheld&device_id=' + encodeURIComponent(H.dev) + q);
+  es.onopen = () => { $('#dConn').className = 'dot ok'; $('#tConn').textContent = 'linked'; };
+  es.onerror = () => { $('#dConn').className = 'dot bad'; $('#tConn').textContent = 'reconnecting'; es.close(); setTimeout(connect, 2500); };
+  es.addEventListener('dispatch', e => onAlert(JSON.parse(e.data)));
+  es.addEventListener('alert', e => onAlert(JSON.parse(e.data)));
+  es.addEventListener('message', e => onMessage(JSON.parse(e.data)));
+  es.addEventListener('run', e => { const r = JSON.parse(e.data); H.run = r.status === 'COMPLETED' ? null : r.run_id; $('#tRun').textContent = H.run ? 'run ' + H.run : 'no run'; });
+}
+function onAlert(a) {
+  const closed = ['CLEARED','CONFIRMED_THREAT','DISMISSED','CLOSED'].includes(a.status);
+  const takenByOther = a.assigned_to && a.assigned_to !== H.dev;
+  const backupCall = takenByOther && a.backup && !closed;
+  // only alerts sent to this unit (or to all units) belong on this handheld
+  const forMe = a.assigned_to === H.dev || backupCall || !a.dispatched_to || a.dispatched_to === 'ALL' || a.dispatched_to === H.dev;
+  if (!forMe && !H.alerts[a.alert_id]) return;
+  if (closed || (takenByOther && !backupCall) || !forMe) {
+    if (H.alerts[a.alert_id]) {
+      H.alerts[a.alert_id] = a;
+      if (takenByOther && !closed) toast(`${a.alert_id} taken by ${a.assigned_to}`);
+      if (a.status === 'DISMISSED' || a.status === 'CLOSED') toast(`${a.alert_id} ${a.status === 'CLOSED' ? 'closed (run ended)' : 'cancelled by Control Unit'}`);
+      if (a.assigned_to !== H.dev || !forMe) { delete H.alerts[a.alert_id]; if (H.current === a.alert_id) H.current = null; }
+      if (H.incoming === a.alert_id) hideIncoming();
+      render();
+    }
+    return;
+  }
+  const prev = H.alerts[a.alert_id];
+  H.alerts[a.alert_id] = a;
+  // ring when: brand new, escalated to everyone, or a backup call reaches this unit
+  const key = `${a.alert_id}:${a.escalations || 0}:${backupCall ? 'b' : ''}`;
+  const needsResponse = (a.status === 'DISPATCHED' && !a.assigned_to) || (backupCall && !H.backupDone.has(a.alert_id));
+  if (!H.seen.has(key) && needsResponse) { H.seen.add(key); if (!H.incoming) { H.current = a.alert_id; showIncoming(a); } }
+  render();
+}
+
+function showIncoming(a) {
+  H.incoming = a.alert_id;
+  const backup = a.backup && a.assigned_to && a.assigned_to !== H.dev;
+  $('#inKind').textContent = backup ? '⚠ BACKUP REQUESTED' : '⚠ INCOMING ALERT';
+  $('#inFlags').innerHTML = [a.threat_level === 'HIGH' ? '<span class="flag">HIGH</span>' : `<span class="flag">${a.threat_level}</span>`,
+    a.escalations ? '<span class="flag">ESCALATED: NO UNIT RESPONDED</span>' : '',
+    backup ? `<span class="flag">SUPPORT ${esc(a.assigned_to)}</span>` : ''].join(' ');
+  $('#inType').textContent = a.detection.replace(/_/g, ' ');
+  $('#inWhere').textContent = `${a.zone || ''}${a.camera ? ' · ' + a.camera : ''} · ${new Date(a.created_at).toLocaleTimeString()}`;
+  $('#inDesc').textContent = a.description || '';
+  let d = '';
+  if (H.pos && a.latitude != null) {
+    const m = dist(H.pos.lat, H.pos.lon, a.latitude, a.longitude), b = brg(H.pos.lat, H.pos.lon, a.latitude, a.longitude);
+    d = `${m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(2) + ' km'} ${card(b)}`;
+  } else if (a.latitude != null) d = `${fmt(a.latitude, 5)}, ${fmt(a.longitude, 5)}`;
+  $('#inDist').textContent = d;
+  if (a.evidence_url) { $('#inImg').src = a.evidence_url; $('#inImg').classList.remove('hidden'); } else $('#inImg').classList.add('hidden');
+  $('#inAck').textContent = backup ? 'RESPOND AS BACKUP' : 'ACKNOWLEDGE';
+  $('#incoming').classList.add('on');
+  alarm(true);
+}
+function hideIncoming() { H.incoming = null; $('#incoming').classList.remove('on'); if (!H.msgs.length) alarm(false); setTimeout(nextIncoming, 600); }
+// several alerts can arrive together: after one is answered, pop up the next that still needs this unit
+function nextIncoming() {
+  if (H.incoming) return;
+  const a = Object.values(H.alerts).find(x => (x.status === 'DISPATCHED' && !x.assigned_to && (!x.dispatched_to || x.dispatched_to === 'ALL' || x.dispatched_to === H.dev)) ||
+    (x.backup && x.assigned_to && x.assigned_to !== H.dev && !H.backupDone.has(x.alert_id)));
+  if (a) { H.current = a.alert_id; showIncoming(a); render(); }
+}
+$('#inAck').onclick = async () => {
+  const a = H.alerts[H.incoming]; if (!a) return hideIncoming();
+  H.current = a.alert_id;
+  const backup = a.backup && a.assigned_to && a.assigned_to !== H.dev;
+  hideIncoming();
+  if (backup) {
+    try { await post(`/api/alerts/${a.alert_id}/officer`, {device_id:H.dev, action:'BACKUP'}); H.backupDone.add(a.alert_id); toast('Responding as backup'); }
+    catch (e) { toast(e.message); }
+    render();
+  } else action('ACK');
+};
+
+// ------------------------------------------------ messages from the Control Unit
+function onMessage(m) {
+  if (H.msgs.some(x => x.msg_id === m.msg_id) || H.readMsgs?.has(m.msg_id)) return;
+  H.msgs.push(m); showMessage();
+}
+function showMessage() {
+  const m = H.msgs[0]; if (!m) { $('#msgBox').classList.remove('on'); return; }
+  $('#msgBox').classList.toggle('urgent', m.priority === 'URGENT');
+  $('#mbPri').textContent = m.priority === 'URGENT' ? '⚠ URGENT · CONTROL UNIT' : 'MESSAGE · CONTROL UNIT';
+  $('#mbMeta').textContent = `${new Date(m.created_at).toLocaleTimeString()} · to ${m.target === 'ALL' ? 'all units' : 'you'}`;
+  $('#mbText').textContent = m.text;
+  $('#msgBox').classList.add('on');
+  if (m.priority === 'URGENT') alarm(true);
+  else { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); beepOnce(); }
+}
+$('#mbAck').onclick = async () => {
+  const m = H.msgs.shift(); if (!m) return;
+  H.readMsgs = H.readMsgs || new Set(); H.readMsgs.add(m.msg_id);
+  try { await post(`/api/messages/${m.msg_id}/ack`, {device_id:H.dev}); } catch (e) {}
+  if (!H.msgs.length && !H.incoming) alarm(false);
+  showMessage();
+};
+
+// ------------------------------------------------ alarm
+function tone(t0, f1, f2, dur, vol) {
+  const o = H.audio.createOscillator(), o2 = H.audio.createOscillator(), g = H.audio.createGain();
+  o.type = 'square'; o2.type = 'sawtooth';
+  o.frequency.setValueAtTime(f1, t0); o.frequency.setValueAtTime(f2, t0 + dur / 2);
+  o2.frequency.setValueAtTime(f1 * 1.01, t0); o2.frequency.setValueAtTime(f2 * 1.01, t0 + dur / 2);
+  g.gain.setValueAtTime(vol, t0); g.gain.setValueAtTime(vol, t0 + dur - .05); g.gain.linearRampToValueAtTime(0, t0 + dur);
+  o.connect(g); o2.connect(g); g.connect(H.audio.destination); o.start(t0); o2.start(t0); o.stop(t0 + dur); o2.stop(t0 + dur);
+}
+function beepOnce() { if (H.audio) tone(H.audio.currentTime, 880, 1320, .3, .2); }
+function alarm(on) {
+  clearInterval(H.beepT);
+  $('#alertHead').classList.toggle('flash', on);
+  if (!on) { if (navigator.vibrate) navigator.vibrate(0); return; }
+  const beep = () => {
+    if (navigator.vibrate) navigator.vibrate([500, 120, 500, 120, 500]);
+    if (H.audio) tone(H.audio.currentTime, 950, 700, .8, .35);
+  };
+  beep(); H.beepT = setInterval(beep, 900);
+}
+
+// ------------------------------------------------ rendering
+function showIdle() { $('#idle').classList.remove('hidden'); $('#alertView').classList.add('hidden'); $('#selfView').classList.add('hidden'); }
+function render() {
+  const open = Object.values(H.alerts).filter(a => !['CLEARED','CONFIRMED_THREAT','DISMISSED','CLOSED'].includes(a.status) || a.assigned_to === H.dev);
+  if (H.pos) open.sort((x, y) => (x.latitude == null) - (y.latitude == null) ||
+      dist(H.pos.lat, H.pos.lon, x.latitude, x.longitude) - dist(H.pos.lat, H.pos.lon, y.latitude, y.longitude));
+  if (!open.length || !H.current || !H.alerts[H.current]) {
+    H.current = open.length ? open[0].alert_id : null;
+    if (!H.current) { alarm(false); showIdle(); return; }
+  }
+  $('#idle').classList.add('hidden'); $('#selfView').classList.add('hidden'); $('#alertView').classList.remove('hidden');
+  $('#tabs').innerHTML = open.length > 1 ? open.map(a => `<button class="${a.alert_id === H.current ? 'on' : ''}" data-id="${a.alert_id}">${a.alert_id} · ${esc(a.detection)}</button>`).join('') : '';
+  const a = H.alerts[H.current];
+  $('#aLvl').textContent = a.threat_level + (a.assigned_to === H.dev ? ' · YOURS' : ''); $('#aStatus').textContent = a.status.replace('_', ' '); $('#aId').textContent = a.alert_id;
+  $('#aType').textContent = a.detection.replace(/_/g, ' ');
+  $('#aDesc').textContent = a.description || '';
+  $('#aMeta').textContent = `${a.zone || ''} · ${new Date(a.created_at).toLocaleTimeString()} · from ${a.source_device}`;
+  $('#aCoords').textContent = a.latitude != null ? `${fmt(a.latitude)}, ${fmt(a.longitude)}` : 'No position (see zone)';
+  $('#aGeo').textContent = a.geo_method === 'PROJECTED' ? '(object position from drone camera)' : a.geo_method === 'DRONE_POSITION' ? '(drone position)' : '';
+  if (a.maps_url) { $('#aMaps').href = a.maps_url; $('#aMaps').classList.remove('hidden'); } else $('#aMaps').classList.add('hidden');
+  if (a.evidence_url) { $('#aImg').src = a.evidence_url; $('#aImg').classList.remove('hidden'); } else $('#aImg').classList.add('hidden');
+  const mine = a.assigned_to === H.dev, st = a.status;
+  const backup = a.backup && a.assigned_to && !mine;
+  if (backup) { $('#aLvl').textContent = 'BACKUP'; $('#aDesc').textContent = `Support ${a.assigned_to}. ${a.description || ''}`; }
+  $('#btnAck').textContent = backup ? (H.backupDone.has(a.alert_id) ? 'Responding as backup ✓' : 'Respond as backup') : 'Acknowledge';
+  $('#btnAck').disabled = backup ? H.backupDone.has(a.alert_id) : st !== 'DISPATCHED';
+  $('#btnRoute').disabled = !(mine && ['ACKNOWLEDGED'].includes(st));
+  $('#btnScene').disabled = !(mine && ['ACKNOWLEDGED','EN_ROUTE'].includes(st));
+  const done = ['CLEARED','CONFIRMED_THREAT'].includes(st);
+  $('#verifyCard').style.display = done ? 'none' : '';
+  $('#btnVerify').disabled = !mine;
+  $('#doneCard').style.display = done ? '' : 'none';
+  if (done) $('#doneCard').innerHTML = `<b>${st === 'CLEARED' ? 'Closed: cleared' : 'Threat confirmed'}</b><div class="muted">${esc(a.resolution || '')}</div><div class="steps"><button id="btnClose">Close</button></div>`;
+  $('#alertHead').style.background = done ? (st === 'CLEARED' ? '#157a3b' : '') : '';
+  renderNav();
+}
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { H.current = b.dataset.id; render(); } });
+document.addEventListener('click', e => { if (e.target.id === 'btnClose') { delete H.alerts[H.current]; H.current = null; render(); } });
+
+function renderNav() {
+  const a = H.current && H.alerts[H.current];
+  if (!a) return;
+  if (!H.pos || a.latitude == null) { $('#aDist').textContent = H.pos ? '–' : 'no GPS'; $('#aBrg').textContent = '–'; drawCompass(); return; }
+  const d = dist(H.pos.lat, H.pos.lon, a.latitude, a.longitude), b = brg(H.pos.lat, H.pos.lon, a.latitude, a.longitude);
+  $('#aDist').textContent = d < 1000 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(2)} km`;
+  $('#aBrg').textContent = `${Math.round(b)}° ${card(b)}`;
+  H.bearing = b; drawCompass();
+}
+function drawCompass() {
+  const c = $('#compass'), g = c.getContext('2d'), R = 110;
+  g.clearRect(0, 0, 240, 240); g.save(); g.translate(120, 120);
+  const rot = H.heading != null ? -rad(H.heading) : 0;       // rotate dial so the arrow points the real way
+  g.strokeStyle = '#33475f'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, R, 0, 7); g.stroke();
+  g.save(); g.rotate(rot);
+  g.fillStyle = '#8394aa'; g.font = 'bold 22px system-ui'; g.textAlign = 'center'; g.fillText('N', 0, -R + 28);
+  if (H.bearing != null) {
+    g.rotate(rad(H.bearing)); g.fillStyle = '#ff4d4f';
+    g.beginPath(); g.moveTo(0, -R + 36); g.lineTo(22, 20); g.lineTo(0, 6); g.lineTo(-22, 20); g.closePath(); g.fill();
+  }
+  g.restore(); g.restore();
+}
+
+// ------------------------------------------------ officer actions
+async function action(act) {
+  const a = H.alerts[H.current];
+  try {
+    const r = await sendReliable(`/api/alerts/${a.alert_id}/officer`, {device_id:H.dev, action:act});
+    if (r) { H.alerts[a.alert_id] = r; }
+    if (act === 'ACK') alarm(false);
+    render();
+  } catch (e) { toast(e.message); }
+}
+$('#btnAck').onclick = async () => {
+  const a = H.alerts[H.current];
+  if (a && a.backup && a.assigned_to && a.assigned_to !== H.dev) {
+    try { await post(`/api/alerts/${a.alert_id}/officer`, {device_id:H.dev, action:'BACKUP'}); H.backupDone.add(a.alert_id); alarm(false); render(); }
+    catch (e) { toast(e.message); }
+  } else action('ACK');
+};
+$('#btnRoute').onclick = () => action('EN_ROUTE');
+$('#btnScene').onclick = () => action('ON_SCENE');
+$('#btnCopy').onclick = () => { navigator.clipboard?.writeText($('#aCoords').textContent); toast('Copied'); };
+$('#vConf').oninput = e => $('#vConfV').textContent = Number(e.target.value).toFixed(2);
+
+function envelope(det, lvl, conf, extra = {}) {
+  const now = new Date(), pad = n => String(n).padStart(2, '0');
+  const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  return Object.assign({
+    message_id: `${H.dev}_${now.getTime()}`, device_id: H.dev, device_type: 'HANDHELD', run_id: H.run,
+    timestamp: ts, detection: det, threat_level: lvl, confidence: +Number(conf).toFixed(2),
+    latitude: H.pos ? +H.pos.lat.toFixed(6) : null, longitude: H.pos ? +H.pos.lon.toFixed(6) : null,
+  }, extra);
+}
+$('#btnVerify').onclick = async () => {
+  const a = H.alerts[H.current];
+  const [det, lvl] = $('#vDet').value.split('|');
+  const msg = envelope(det, lvl, $('#vConf').value, {alert_id:a.alert_id, zone:a.zone, notes:$('#vNote').value});
+  try {
+    const r = await sendReliable('/api/handheld/data', msg);
+    if (r) { toast(`Sent · ${r.alert_status || r.status}`); heartbeat(); }
+  } catch (e) { toast('Rejected: ' + e.message); }
+};
+$('#btnSelfReport').onclick = () => { $('#idle').classList.add('hidden'); $('#selfView').classList.remove('hidden'); };
+$('#btnSelfCancel').onclick = showIdle;
+$('#btnSelfSend').onclick = async () => {
+  if (!H.run) return toast('No active run at the Control Unit');
+  const [det, lvl] = $('#sDet').value.split('|');
+  try { const r = await sendReliable('/api/handheld/data', envelope(det, lvl, $('#sConf').value, {zone:$('#sZone').value}));
+    if (r) toast(r.alert ? `Alert ${r.alert} raised` : 'Logged'); showIdle(); }
+  catch (e) { toast('Rejected: ' + e.message); }
+};
+</script>
+</body>
+</html>

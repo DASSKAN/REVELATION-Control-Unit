@@ -1,0 +1,8 @@
+data/
+evidence/
+certs/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db*

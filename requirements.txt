@@ -1,0 +1,8 @@
+flask>=3.0
+opencv-python>=4.8
+numpy>=1.24
+onnxruntime>=1.16      # optional but faster; falls back to OpenCV DNN if missing
+requests>=2.31         # simulators, tests, blockchain anchoring
+cryptography>=42       # Ed25519 ledger signatures, HTTPS certificate
+# web3>=6              # optional: anchor the ledger on Polygon (set POLYGON_PRIVATE_KEY)
+# pymavlink>=2.4       # optional: read GPS straight from the flight controller (MAVLINK_URL)
